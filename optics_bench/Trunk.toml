@@ -1,0 +1,8 @@
+# Web build with Trunk (https://trunkrs.dev).
+#   trunk serve                  local test at http://127.0.0.1:8080 (WebGPU works on localhost)
+#   trunk build --release        optimized build into dist/
+# The GitHub Pages workflow adds --public-url /Physics-III-teaching-applets/optics-bench/.
+
+[build]
+target = "index.html"
+dist = "dist"

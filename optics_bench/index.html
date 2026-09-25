@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Optics Bench</title>
+    <meta name="description" content="Ray optics and Fourier optics in the browser, ray traced on the GPU with WebGPU.">
+    <meta name="color-scheme" content="dark">
+
+    <!-- Trunk builds the Rust app (src/main.rs) and inserts the loader here -->
+    <link data-trunk rel="rust" data-bin="optics_bench" data-wasm-opt="2" />
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1b1b1b;
+            color: #dcdcdc;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            touch-action: manipulation;
+        }
+        /* eframe sizes the drawing buffer from the canvas's CSS size */
+        #optics_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+        }
+        .message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-sizing: border-box;
+            width: min(36em, 100% - 32px);
+            text-align: center;
+            line-height: 1.5;
+        }
+        .message a { color: #8cb4ff; }
+        .detail { color: #8a8a8a; font-size: 0.85em; overflow-wrap: anywhere; }
+        #crashed { background: #1b1b1bee; padding: 8px 16px; border-radius: 8px; }
+        #optics_canvas[data-crashed] { opacity: 0.25; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <canvas id="optics_canvas"></canvas>
+
+    <div id="loading" class="message">Loading Optics Bench…</div>
+
+    <div id="no_webgpu" class="message" hidden>
+        <p><strong>This app needs WebGPU</strong> (Chrome/Edge, Safari 26+, or Firefox with WebGPU).
+            The desktop app works everywhere.</p>
+        <p><a href="https://github.com/MoritzFS/Physics-III-teaching-applets/tree/main/optics_bench">About
+            Optics Bench and the desktop app</a></p>
+        <p class="detail" id="no_webgpu_detail"></p>
+    </div>
+
+    <!-- shown by src/main.rs when the app panics -->
+    <div id="crashed" class="message" hidden>
+        <p><strong>Optics Bench stopped with an error.</strong> Reloading the page usually helps.</p>
+        <p class="detail" id="crashed_detail"></p>
+    </div>
+
+    <script>
+        // Without WebGPU, explain instead of showing an empty canvas.
+        // (src/main.rs shows the same message if the browser has no usable GPU adapter.)
+        if (!navigator.gpu) {
+            document.getElementById("optics_canvas").remove();
+            document.getElementById("loading").remove();
+            document.getElementById("no_webgpu").hidden = false;
+            document.getElementById("no_webgpu_detail").textContent = "navigator.gpu is not available in this browser.";
+        }
+    </script>
+</body>
+</html>

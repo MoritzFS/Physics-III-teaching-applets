@@ -9,8 +9,14 @@
 //! central line of the object through the whole system.
 
 use std::f32::consts::PI;
-use std::sync::{mpsc, Arc};
+use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::mpsc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 use eframe::egui::{Color32, ColorImage};
 use rayon::prelude::*;
@@ -194,7 +200,8 @@ pub struct FourierParams {
 impl Default for FourierParams {
     fn default() -> Self {
         FourierParams {
-            n: 512,
+            // the web version has no threads: a smaller grid keeps it responsive
+            n: if cfg!(target_arch = "wasm32") { 256 } else { 512 },
             window_mm: 8.0,
             wavelength_nm: 633.0,
             f1_mm: 200.0,
@@ -749,6 +756,7 @@ fn side_view(p: &FourierParams, planner: &mut FftPlanner<f32>, tint: [f32; 3]) -
 // ---------------------------------------------------------------- worker thread
 
 /// Computes on a background thread; only the newest request is worked on.
+#[cfg(not(target_arch = "wasm32"))]
 pub struct Engine {
     to_worker: mpsc::Sender<FourierParams>,
     from_worker: mpsc::Receiver<FourierResult>,
@@ -757,6 +765,7 @@ pub struct Engine {
     last_sent: Option<FourierParams>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Engine {
     pub fn new(repaint: impl Fn() + Send + 'static) -> Self {
         let (to_worker, rx) = mpsc::channel::<FourierParams>();
@@ -807,6 +816,40 @@ impl Engine {
 
     pub fn busy(&self) -> bool {
         self.busy
+    }
+}
+
+/// The web version has no threads: computes in `poll`, at most once per frame,
+/// always for the newest request.
+#[cfg(target_arch = "wasm32")]
+pub struct Engine {
+    planner: FftPlanner<f32>,
+    queued: Option<FourierParams>,
+    last_done: Option<FourierParams>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Engine {
+    pub fn new(_repaint: impl Fn() + Send + 'static) -> Self {
+        Engine { planner: FftPlanner::new(), queued: None, last_done: None }
+    }
+
+    /// ask for a new computation if the parameters changed
+    pub fn request(&mut self, p: &FourierParams) {
+        if self.last_done.as_ref() != Some(p) {
+            self.queued = Some(p.clone());
+        }
+    }
+
+    pub fn poll(&mut self) -> Option<FourierResult> {
+        let p = self.queued.take()?;
+        let r = compute(&p, &mut self.planner);
+        self.last_done = Some(p);
+        Some(r)
+    }
+
+    pub fn busy(&self) -> bool {
+        self.queued.is_some()
     }
 }
 

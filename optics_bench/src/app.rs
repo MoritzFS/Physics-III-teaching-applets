@@ -105,6 +105,13 @@ impl Default for Settings {
     }
 }
 
+impl Settings {
+    /// Browser defaults: fewer samples, for integrated GPUs.
+    fn web() -> Self {
+        Settings { spp: 1, max_samples: 512, ..Settings::default() }
+    }
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 struct TopCam {
     center: Vec2,
@@ -137,6 +144,16 @@ fn overview_tan(w: f32, h: f32) -> (f32, f32) {
     let tx = (0.445 * aspect).min(0.9);
     (tx, tx / aspect)
 }
+
+/// Key of the app state in eframe's storage. In the browser that is the local
+/// storage of the whole site, so use a name that no other applet will use.
+#[cfg(not(target_arch = "wasm32"))]
+const STATE_KEY: &str = eframe::APP_KEY;
+#[cfg(target_arch = "wasm32")]
+const STATE_KEY: &str = "optics_bench/state";
+
+/// Cmd+S on the Mac, Ctrl+S elsewhere
+const SAVE_SHORTCUT: egui::KeyboardShortcut = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S);
 
 #[derive(Serialize, Deserialize)]
 struct Persist {
@@ -179,6 +196,7 @@ pub struct OpticsApp {
     /// how the screen samples the light, cached by a hash of the scene
     entrance: (u64, Option<Entrance>),
     /// debug hook: OPTICS_SHOT=file.png saves a screenshot after some frames and quits
+    #[cfg(not(target_arch = "wasm32"))]
     shot: Option<Shot>,
     /// fit the top view to the scene as soon as the bench size is known
     pending_fit: bool,
@@ -191,11 +209,15 @@ struct ConfigWindow {
     open: bool,
     name: String,
     entries: Vec<configs::Entry>,
-    confirm_delete: Option<std::path::PathBuf>,
+    confirm_delete: Option<configs::Key>,
     message: Option<(String, bool)>,
     focus_name: bool,
+    /// files being read by the browser (opened or dropped)
+    #[cfg(target_arch = "wasm32")]
+    inbox: crate::web::Inbox,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 struct Shot {
     path: String,
     secs: f32,
@@ -231,6 +253,7 @@ impl OpticsApp {
             entrance: (0, None),
             pending_fit: true,
             configs: ConfigWindow::default(),
+            #[cfg(not(target_arch = "wasm32"))]
             shot: std::env::var("OPTICS_SHOT").ok().map(|path| Shot {
                 path,
                 secs: std::env::var("OPTICS_SHOT_SECS").ok().and_then(|f| f.parse().ok()).unwrap_or(5.0),
@@ -238,8 +261,11 @@ impl OpticsApp {
                 start: std::time::Instant::now(),
             }),
         };
-        if let Some(storage) = cc.storage.filter(|_| app.shot.is_none()) {
-            if let Some(p) = eframe::get_value::<Persist>(storage, eframe::APP_KEY) {
+        if cfg!(target_arch = "wasm32") {
+            app.settings = Settings::web();
+        }
+        if let Some(storage) = cc.storage.filter(|_| !app.taking_shot()) {
+            if let Some(p) = eframe::get_value::<Persist>(storage, STATE_KEY) {
                 app.scene = p.scene;
                 app.settings = p.settings;
                 app.top = p.top;
@@ -255,7 +281,8 @@ impl OpticsApp {
         if let Some(rs) = cc.wgpu_render_state.as_ref() {
             app.gpu = Some(Gpu::new(rs));
         }
-        if app.shot.is_some() {
+        #[cfg(not(target_arch = "wasm32"))]
+        if app.taking_shot() {
             if let Some(i) = std::env::var("OPTICS_PRESET").ok().and_then(|p| p.parse::<usize>().ok()) {
                 app.load_preset(Preset::ALL[i.min(Preset::ALL.len() - 1)]);
             }
@@ -265,7 +292,7 @@ impl OpticsApp {
                 app.four.load_preset(FourierPreset::ALL[i.min(FourierPreset::ALL.len() - 1)]);
             }
             if let Ok(path) = std::env::var("OPTICS_LOAD") {
-                app.load_config(std::path::Path::new(&path));
+                app.load_config(&std::path::PathBuf::from(path));
             }
             if let Some(i) = std::env::var("OPTICS_SELECT").ok().and_then(|p| p.parse::<usize>().ok()) {
                 app.selected = app.scene.elements.get(i).map(|e| e.id);
@@ -1787,14 +1814,15 @@ impl OpticsApp {
                     ui.menu_button("My configurations", |ui| {
                         for entry in &saved {
                             if ui.button(&entry.name).clicked() {
-                                self.load_config(&entry.path.clone());
+                                self.load_config(&entry.key);
                                 ui.close();
                             }
                         }
                     });
                 });
                 ui.separator();
-                if ui.button("Save / manage configurations…   Cmd+S").clicked() {
+                let shortcut = ui.ctx().format_shortcut(&SAVE_SHORTCUT);
+                if ui.add(egui::Button::new("Save / manage configurations…").shortcut_text(shortcut)).clicked() {
                     self.open_config_window();
                     ui.close();
                 }
@@ -1819,7 +1847,11 @@ impl OpticsApp {
                 ui.label("• EYE: pixels are points on the retina. Rays go through the pupil, the eye lens (which accommodates) and all optics on the bench.");
                 ui.label("• SCREEN: every point of the screen collects the light that comes through the lens, aperture or prism in front of it, like in a dark room.");
                 ui.label("• FOURIER OPTICS (4f): switch in the menu bar. Scalar wave optics: input field (colour = phase, brightness = amplitude, plus the wavefront along the centre line), Fraunhofer pattern in the Fourier plane with a filter, filtered image, and the propagation through the whole system. Scroll in a panel to zoom, drag in the Fourier plane to size the filter.");
-                ui.label("• Save scenes (with notes for students) via Scene → Save / manage configurations. They are JSON files in the folder 'Optics Bench configs' next to the app; drop one onto the window to open it.");
+                ui.label(if cfg!(target_arch = "wasm32") {
+                    "• Save scenes (with notes for students) via Scene → Save / manage configurations. They are kept in this browser; download them as .json files to keep or share them, and open a .json file with Open .json… or by dropping it onto the page. The files also work in the desktop app."
+                } else {
+                    "• Save scenes (with notes for students) via Scene → Save / manage configurations. They are JSON files in the folder 'Optics Bench configs' next to the app; drop one onto the window to open it."
+                });
                 ui.label("• Stickman: red = his left arm and leg, blue = his right. The F-sign and the apples on the tree are asymmetric too, so you can see how images are flipped.");
                 ui.label("• Top view: red/blue ray fans start at the left/right edge of each object (select an object to show only its rays).");
             });
@@ -1833,7 +1865,7 @@ impl OpticsApp {
     }
 
     fn handle_keys(&mut self, ctx: &egui::Context) {
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&SAVE_SHORTCUT)) {
             self.open_config_window();
         }
         if ctx.egui_wants_keyboard_input() || self.mode != Mode::Ray {
@@ -1890,25 +1922,33 @@ impl OpticsApp {
         }
     }
 
-    fn save_config(&mut self) {
-        let name = self.configs.name.trim().to_string();
-        let cfg = ConfigFile {
-            name: name.clone(),
+    /// the current scene, named after the name field
+    fn current_config(&self) -> ConfigFile {
+        ConfigFile {
+            name: self.configs.name.trim().to_string(),
             scene: self.scene.clone(),
             view: Some(self.saved_view()),
             mode: self.mode,
             fourier: Some(self.four.params.clone()),
             fourier_notes: self.four.notes.clone(),
-        };
+        }
+    }
+
+    fn save_config(&mut self) {
+        let cfg = self.current_config();
         self.configs.message = Some(match configs::save(&cfg) {
-            Ok(path) => (format!("Saved '{name}' ({})", path.file_name().unwrap_or_default().to_string_lossy()), true),
+            Ok(key) => (format!("Saved '{}' ({})", cfg.name, configs::saved_where(&key)), true),
             Err(e) => (format!("Could not save: {e}"), false),
         });
         self.configs.entries = configs::list();
     }
 
-    fn load_config(&mut self, path: &std::path::Path) {
-        match configs::load(path) {
+    fn load_config(&mut self, key: &configs::Key) {
+        self.apply_config(configs::load(key));
+    }
+
+    fn apply_config(&mut self, loaded: Result<ConfigFile, String>) {
+        match loaded {
             Ok(cfg) => {
                 self.scene = cfg.scene;
                 self.selected = None;
@@ -1939,8 +1979,10 @@ impl OpticsApp {
             return;
         }
         let mut open = true;
-        let mut to_load: Option<std::path::PathBuf> = None;
-        let mut to_delete: Option<std::path::PathBuf> = None;
+        let mut to_load: Option<configs::Key> = None;
+        let mut to_delete: Option<configs::Key> = None;
+        #[cfg(target_arch = "wasm32")]
+        let mut to_download: Option<(String, Result<ConfigFile, String>)> = None;
         let mut save = false;
         egui::Window::new("Configurations")
             .open(&mut open)
@@ -1962,7 +2004,7 @@ impl OpticsApp {
                         self.configs.focus_name = false;
                     }
                     let valid = !self.configs.name.trim().is_empty();
-                    let exists = valid && configs::path_for(&self.configs.name).exists();
+                    let exists = valid && configs::exists(&self.configs.name);
                     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     let clicked = ui.add_enabled(valid, egui::Button::new(if exists { "Overwrite" } else { "Save" })).clicked();
                     save = valid && (clicked || enter);
@@ -1970,6 +2012,18 @@ impl OpticsApp {
                 ui.label("Notes, shown when the scene is opened (e.g. a task for the students):");
                 let notes = if self.mode == Mode::Fourier { &mut self.four.notes } else { &mut self.scene.notes };
                 ui.add(egui::TextEdit::multiline(notes).desired_rows(3).desired_width(f32::INFINITY));
+                #[cfg(target_arch = "wasm32")]
+                ui.horizontal(|ui| {
+                    if ui.button("Download .json").on_hover_text("the current scene as a file").clicked() {
+                        let cfg = self.current_config();
+                        to_download = Some((configs::file_name(&cfg.name), Ok(cfg)));
+                    }
+                    if ui.button("Open .json…").clicked() {
+                        if let Err(e) = crate::web::open_file(ui.ctx(), &self.configs.inbox, ".json,application/json") {
+                            self.configs.message = Some((format!("Could not open the file dialog: {e}"), false));
+                        }
+                    }
+                });
                 if let Some((msg, ok)) = &self.configs.message {
                     let col = if *ok { Color32::from_rgb(110, 190, 110) } else { Color32::from_rgb(230, 110, 90) };
                     ui.colored_label(col, msg);
@@ -1977,6 +2031,7 @@ impl OpticsApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.strong("Saved configurations");
+                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.small_button("Show in Finder").clicked() {
                         let dir = configs::dir();
                         let _ = std::fs::create_dir_all(&dir);
@@ -1986,7 +2041,7 @@ impl OpticsApp {
                         self.configs.entries = configs::list();
                     }
                 });
-                ui.weak(configs::dir().display().to_string());
+                ui.weak(configs::location());
                 egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
                     if self.configs.entries.is_empty() {
                         ui.weak("Nothing saved yet.");
@@ -1995,20 +2050,24 @@ impl OpticsApp {
                         ui.horizontal(|ui| {
                             ui.label(&entry.name);
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if self.configs.confirm_delete.as_ref() == Some(&entry.path) {
+                                if self.configs.confirm_delete.as_ref() == Some(&entry.key) {
                                     if ui.small_button("No").clicked() {
                                         self.configs.confirm_delete = None;
                                     }
                                     if ui.small_button("Yes, delete").clicked() {
-                                        to_delete = Some(entry.path.clone());
+                                        to_delete = Some(entry.key.clone());
                                     }
                                     ui.colored_label(Color32::from_rgb(230, 110, 90), "Delete?");
                                 } else {
                                     if ui.small_button("Delete").clicked() {
-                                        self.configs.confirm_delete = Some(entry.path.clone());
+                                        self.configs.confirm_delete = Some(entry.key.clone());
+                                    }
+                                    #[cfg(target_arch = "wasm32")]
+                                    if ui.small_button("Download").clicked() {
+                                        to_download = Some((configs::file_name(&entry.name), configs::load(&entry.key)));
                                     }
                                     if ui.small_button("Open").clicked() {
-                                        to_load = Some(entry.path.clone());
+                                        to_load = Some(entry.key.clone());
                                     }
                                 }
                             });
@@ -2020,6 +2079,14 @@ impl OpticsApp {
             });
         if save {
             self.save_config();
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some((file, cfg)) = to_download {
+            let done = cfg.and_then(|cfg| configs::to_json(&cfg)).and_then(|json| crate::web::download(&file, &json));
+            self.configs.message = Some(match done {
+                Ok(()) => (format!("Downloaded {file}"), true),
+                Err(e) => (format!("Could not download: {e}"), false),
+            });
         }
         if let Some(p) = to_load {
             self.load_config(&p);
@@ -2038,10 +2105,17 @@ impl OpticsApp {
     }
 
     fn handle_dropped_files(&mut self, ctx: &egui::Context) {
-        let dropped: Vec<std::path::PathBuf> =
-            ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
-        for p in dropped.iter().filter(|p| p.extension().is_some_and(|e| e == "json")) {
-            self.load_config(p);
+        let dropped = ctx.input(|i| i.raw.dropped_files.clone());
+        for file in dropped.into_iter().filter(|f| f.path().extension().is_some_and(|e| e == "json")) {
+            #[cfg(not(target_arch = "wasm32"))]
+            self.load_config(&file.path().to_path_buf());
+            // the browser reads files asynchronously: they arrive in the inbox
+            #[cfg(target_arch = "wasm32")]
+            crate::web::read_dropped(ctx, &self.configs.inbox, file);
+        }
+        #[cfg(target_arch = "wasm32")]
+        for (name, text) in self.configs.inbox.take() {
+            self.apply_config(text.and_then(|t| configs::from_json(&t, &name)));
         }
     }
 }
@@ -2122,13 +2196,19 @@ impl eframe::App for OpticsApp {
         self.debug_shot(&ctx);
     }
 
+    /// In the browser, eframe only saves periodically (not reliably when the
+    /// page is closed), so save more often there. The state is a few kB.
+    fn auto_save_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(if cfg!(target_arch = "wasm32") { 5 } else { 30 })
+    }
+
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        if self.shot.is_some() {
+        if self.taking_shot() {
             return;
         }
         eframe::set_value(
             storage,
-            eframe::APP_KEY,
+            STATE_KEY,
             &Persist {
                 scene: self.scene.clone(),
                 settings: self.settings.clone(),
@@ -2142,6 +2222,20 @@ impl eframe::App for OpticsApp {
 }
 
 impl OpticsApp {
+    #[cfg(not(target_arch = "wasm32"))]
+    fn taking_shot(&self) -> bool {
+        self.shot.is_some()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn taking_shot(&self) -> bool {
+        false
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn debug_shot(&mut self, _ctx: &egui::Context) {}
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn debug_shot(&mut self, ctx: &egui::Context) {
         let Some(shot) = &mut self.shot else { return };
         shot.count += 1;

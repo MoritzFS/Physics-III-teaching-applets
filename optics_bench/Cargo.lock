@@ -1872,6 +1872,7 @@ dependencies = [
  "eframe",
  "env_logger",
  "glam",
+ "js-sys",
  "log",
  "naga",
  "png",
@@ -1880,6 +1881,10 @@ dependencies = [
  "serde",
  "serde_json",
  "transpose",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
 ]
 
 [[package]]
