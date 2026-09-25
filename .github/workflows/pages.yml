@@ -11,9 +11,10 @@ on:
 permissions:
   contents: read
 
+# a newer push to a pull request cancels its build; deploys to main finish
 concurrency:
   group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -32,6 +33,10 @@ jobs:
       - name: Optics Bench tests (native)
         working-directory: optics_bench
         run: cargo test --release
+        # the tests don't need link-time optimization; it only makes CI slower
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
 
       - uses: jetli/trunk-action@v0.5.1
         with:

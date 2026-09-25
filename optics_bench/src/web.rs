@@ -8,13 +8,16 @@ use eframe::egui;
 use wasm_bindgen::JsCast as _;
 use wasm_bindgen::prelude::*;
 
+/// A file read by the browser: (file name, contents or error).
+pub type ReadFile = (String, Result<String, String>);
+
 /// Text files that are read asynchronously (opened or dropped), picked up by
-/// the app on the next frame: (file name, contents or error).
+/// the app on the next frame.
 #[derive(Clone, Default)]
-pub struct Inbox(Rc<RefCell<Vec<(String, Result<String, String>)>>>);
+pub struct Inbox(Rc<RefCell<Vec<ReadFile>>>);
 
 impl Inbox {
-    pub fn take(&self) -> Vec<(String, Result<String, String>)> {
+    pub fn take(&self) -> Vec<ReadFile> {
         std::mem::take(&mut *self.0.borrow_mut())
     }
 

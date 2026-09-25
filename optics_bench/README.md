@@ -46,15 +46,18 @@ the same app in the browser (WebAssembly and WebGPU).
 * **Browsers**: it needs WebGPU, which Chrome and Edge, Safari 26 or newer,
   and Firefox with WebGPU have. Other browsers show a message instead. The
   desktop app works everywhere.
-* **4f bench**: browsers only allow threads on sites that send special
-  headers, which GitHub Pages cannot. The wave optics is therefore computed
+* **4f bench**: computing on several threads in the browser needs shared
+  memory, which browsers only enable for sites that send special headers
+  (COOP/COEP). GitHub Pages cannot send them, so the wave optics is computed
   on one thread, between two frames. The grid starts at 256²; 512² and
   1024² work, but the controls lag while the picture updates.
 * **Configurations** are kept in this browser's storage for the site, not in
   files. **Download** saves one as a `.json` file, to keep it or to share it.
   **Open .json…** opens one, and so does dropping it onto the page. The files
   are the same as those of the desktop app. Clearing the site data in the
-  browser deletes the saved configurations.
+  browser deletes the saved configurations, and Safari deletes them by
+  itself when the site has not been used for about a week of browsing, so
+  download the ones you want to keep.
 * **Rendering** starts with 1 sample per frame and at most 512 samples, to be
   gentle on laptop GPUs. Both can be raised in the Rendering menu.
 

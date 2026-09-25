@@ -74,6 +74,9 @@ fn main() {
 #[cfg(target_arch = "wasm32")]
 fn show_crash(message: &str) {
     let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+    if let Some(loading) = document.get_element_by_id("loading") {
+        loading.remove();
+    }
     if let Some(canvas) = document.get_element_by_id("optics_canvas") {
         let _ = canvas.set_attribute("data-crashed", "");
     }

@@ -7,8 +7,9 @@ the repo root has a small landing page at
 `main` rebuilds and redeploys. The macOS desktop app must keep working from
 the same code.
 
-**Status (2026-09-25):** the desktop app is finished and tested on macOS (M3).
-Nothing has been done for the web yet. The repo contains the source only.
+**Status (2026-09-25):** tasks 1–7 are done and deployed from `main`. See
+[section 7](#7-web-port-what-was-done) for what was verified, the decisions
+made beyond this plan, and open points. Sections 1–6 are the original plan.
 
 ---
 
@@ -204,3 +205,64 @@ the summary what was and wasn't verified.
   - Lenses are ideal thin lenses; aberrations are model terms.
   - The ray tracer has no diffraction; that's why the 4f bench exists.
   - The 4f propagation view is a 1D model of the object's centre line.
+
+## 7. Web port: what was done
+
+**Verified**
+- In the cloud (Linux):
+  - `cargo test --release` passes (10 tests).
+  - The native build has no warnings, and `cargo check` / `cargo clippy`
+    pass for `wasm32-unknown-unknown`.
+  - `trunk build --release` succeeds. The wasm is 9.6 MB, 3.5 MB gzipped.
+- In headless Chromium with a software WebGPU adapter (SwiftShader):
+  - The app starts, the WGSL compiles in Tint, and the 4f bench runs.
+  - Without `navigator.gpu`, or without an adapter, the WebGPU message shows.
+  - Headless screenshots don't capture WebGPU canvases, so there was no
+    visual check there.
+- The owner ran it locally with `trunk serve` on the Mac.
+
+**Not verified yet**
+- The deployed site in Chrome and Safari.
+- Download, Open .json and drop in the page.
+- A 4f timing measured in the browser (native single-thread: about 30 ms at
+  256² and 120 ms at 512²).
+- `./bundle.sh` on macOS after the change.
+
+**Decisions beyond the plan**
+- The web entry lives in `src/main.rs` behind `cfg(target_arch = "wasm32")`,
+  as in eframe's template. `src/web.rs` holds the browser helpers (local
+  storage, download, file dialog, async file reads).
+- `configs.rs` has one API with two stores. On the desktop the files are
+  the same as before; in the browser each configuration is a local-storage
+  key `optics_bench/config/<name>`.
+- In the browser:
+  - The app state lives under `optics_bench/state` instead of eframe's
+    `app`, because all of `moritzfs.github.io` shares one local storage.
+  - The state is saved every 5 s. eframe 0.36 registers its save-on-close
+    listener as `"onbeforeunload"`, which never fires.
+  - Rendering defaults are 1 sample per frame and at most 512 samples.
+  - A panic shows a message in the page (a hook in `main.rs`, which eframe's
+    own panic hook chains to).
+- The save shortcut label comes from `format_shortcut` (⌘S on the Mac,
+  Ctrl+S elsewhere).
+- The release profile has `lto = true` and `codegen-units = 1`. CI turns
+  both off for the test step only, to save time.
+- The workflow also runs the tests and the build (without deploying) on
+  pull requests.
+
+**Working on the web version**
+- Building for wasm needs rustup's Rust: Homebrew's `rust` cannot add the
+  `wasm32-unknown-unknown` target. Then run
+  `rustup target add wasm32-unknown-unknown`.
+- `trunk serve` (run from `optics_bench/`) serves the app at
+  http://127.0.0.1:8080. Localhost counts as secure, so WebGPU works.
+- Check the wasm side with
+  `cargo clippy --target wasm32-unknown-unknown`.
+
+**Possible follow-ups**
+- Speed up the 4f bench on the web with rustfft's `wasm_simd` feature and
+  `-C target-feature=+simd128`. All browsers with WebGPU support wasm SIMD.
+- Shrink the wasm: eframe's `wgpu` feature also compiles wgpu's WebGL
+  backend, which is never used.
+- If a second egui applet goes onto the same site, both would share eframe's
+  `egui_memory_ron` key. Override `persist_egui_memory` on the web.

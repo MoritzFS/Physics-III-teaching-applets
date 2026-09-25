@@ -238,6 +238,13 @@ mod tests {
     }
 
     #[test]
+    fn file_names_are_safe() {
+        assert_eq!(file_name(" PS03 exercise 2 "), "PS03 exercise 2.json");
+        assert_eq!(file_name("a/b:c"), "a_b_c.json");
+        assert_eq!(file_name("  "), "untitled.json");
+    }
+
+    #[test]
     fn older_files_without_notes_or_view_still_load() {
         let mut v = serde_json::to_value(ConfigFile {
             name: "x".into(),
