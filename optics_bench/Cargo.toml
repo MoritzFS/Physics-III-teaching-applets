@@ -16,6 +16,10 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 transpose = "0.2.3"
 
+# winit needs a windowing backend on Linux (used by CI for the native tests).
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "default_fonts", "persistence", "x11"] }
+
 [profile.release]
 opt-level = 3
 debug = false
