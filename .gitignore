@@ -1,0 +1,6 @@
+.DS_Store
+target/
+dist/
+_site/
+*.app
+Optics Bench configs/
