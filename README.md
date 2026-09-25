@@ -5,7 +5,7 @@ can use them.
 
 | applet | what it shows | run it |
 |---|---|---|
-| [Optics Bench](optics_bench/) | Ray optics on a lawn: lenses, apertures, prisms, eye and screen, all GPU ray traced. Plus a 4f Fourier-optics bench (diffraction, spatial filtering, phase contrast). | desktop app (see its README); web version in progress, see [HANDOFF.md](HANDOFF.md) |
+| [Optics Bench](optics_bench/) | Ray optics on a lawn: lenses, apertures, prisms, eye and screen, all GPU ray traced. Plus a 4f Fourier-optics bench (diffraction, spatial filtering, phase contrast). | [in the browser](https://moritzfs.github.io/Physics-III-teaching-applets/optics-bench/) (needs WebGPU), or as a desktop app (see its README) |
 
-Once the web version is deployed it will be at
+All applets are listed at
 <https://moritzfs.github.io/Physics-III-teaching-applets/>.

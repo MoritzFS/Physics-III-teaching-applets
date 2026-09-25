@@ -1,0 +1,63 @@
+# Tests the apps and builds the web site; pushes to main also deploy it to
+# GitHub Pages (Settings -> Pages -> Source: GitHub Actions).
+name: pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: optics_bench
+
+      - name: Optics Bench tests (native)
+        working-directory: optics_bench
+        run: cargo test --release
+
+      - uses: jetli/trunk-action@v0.5.1
+        with:
+          version: v0.21.14
+
+      - name: Build Optics Bench for the web
+        working-directory: optics_bench
+        run: trunk build --release --public-url /Physics-III-teaching-applets/optics-bench/ --dist ../_site/optics-bench
+
+      - name: Add the landing page
+        run: cp site/index.html _site/
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

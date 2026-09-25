@@ -1,8 +1,12 @@
 # Optics Bench
 
 An interactive optics bench on a lawn, for teaching geometrical optics.
-Written in Rust. egui draws the interface and wgpu (Metal on macOS) runs the
-GPU ray tracer.
+Written in Rust. egui draws the interface and wgpu (Metal on macOS, WebGPU in
+the browser) runs the GPU ray tracer.
+
+**Open it in the browser:**
+<https://moritzfs.github.io/Physics-III-teaching-applets/optics-bench/>
+(needs WebGPU, see [Web version](#web-version)).
 
 ```
 ┌ EYE ───────────────────────┬ SCREEN ────────────────────┐
@@ -30,6 +34,29 @@ cargo run --release
 ```
 
 `bundle.sh` puts the app bundle next to this folder, in the repository root. It is git-ignored.
+
+The web version is built with [Trunk](https://trunkrs.dev): `trunk serve`
+runs it locally at <http://127.0.0.1:8080>.
+
+## Web version
+
+<https://moritzfs.github.io/Physics-III-teaching-applets/optics-bench/> runs
+the same app in the browser (WebAssembly and WebGPU).
+
+* **Browsers**: it needs WebGPU, which Chrome and Edge, Safari 26 or newer,
+  and Firefox with WebGPU have. Other browsers show a message instead. The
+  desktop app works everywhere.
+* **4f bench**: browsers only allow threads on sites that send special
+  headers, which GitHub Pages cannot. The wave optics is therefore computed
+  on one thread, between two frames. The grid starts at 256²; 512² and
+  1024² work, but the controls lag while the picture updates.
+* **Configurations** are kept in this browser's storage for the site, not in
+  files. **Download** saves one as a `.json` file, to keep it or to share it.
+  **Open .json…** opens one, and so does dropping it onto the page. The files
+  are the same as those of the desktop app. Clearing the site data in the
+  browser deletes the saved configurations.
+* **Rendering** starts with 1 sample per frame and at most 512 samples, to be
+  gentle on laptop GPUs. Both can be raised in the Rendering menu.
 
 ## Using it
 
@@ -115,20 +142,25 @@ object ──f₁── L1 ──f₁── Fourier plane (filter) ──f₂─
 The 2D planes are exact discrete Fourier transforms (paraxial, scalar). Unit
 tests check the fringe spacing λf/d, the first Airy zero 1.22 λf/D, the Talbot
 length 2p²/λ, and that the unfiltered image is the inverted object. One update
-takes about 15 ms at 512² and 35 ms at 1024² on a background thread.
+takes about 15 ms at 512² and 35 ms at 1024² on a background thread (desktop
+app; the web version is slower, see [Web version](#web-version)).
 
 ## Saving configurations
 
-**Scene → Save / manage configurations…** (or Cmd+S) saves the current scene,
+**Scene → Save / manage configurations…** (or Cmd+S; Ctrl+S on Windows and
+Linux) saves the current scene,
 including the camera views, the 4f bench settings, which bench is open, and a
 free-text note. The note is shown in the
 inspector when the scene is opened, so it can hold a task for the students.
 
 Configurations are plain `.json` files in the folder `Optics Bench configs`
 next to the app. Copy them to share them. You can open them from
-**Scene → My configurations**, or by dropping a file onto the window.
+**Scene → My configurations**, or by dropping a file onto the window. In the
+browser they are stored in the browser instead; see
+[Web version](#web-version).
 
-The current scene and settings are also kept automatically when the app quits.
+The current scene and settings are also kept automatically when the app quits
+(in the browser: every few seconds).
 
 ## Physics model
 
@@ -188,7 +220,10 @@ tree are mostly on one side.
 | `src/scene.rs` | scene model, 3D objects, example presets |
 | `src/trace.rs` | CPU tracer: auto focus, ray fans, picking |
 | `src/app.rs` | user interface |
-| `src/configs.rs` | saving and loading configurations (JSON) |
+| `src/configs.rs` | saving and loading configurations (JSON files, or browser storage) |
 | `src/fourier.rs` | wave optics of the 4f system (FFT, angular spectrum), 4f examples |
 | `src/fourier_ui.rs` | user interface of the 4f bench |
+| `src/main.rs`, `src/lib.rs` | start-up on the desktop and in the browser |
+| `src/web.rs` | browser helpers: storage, downloading and opening files |
+| `index.html`, `Trunk.toml` | the web page and its build |
 | `shot.sh` | saves a screenshot of an example or a saved configuration, e.g. for slides |

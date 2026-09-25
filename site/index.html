@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics III applets</title>
+    <meta name="description" content="Interactive applets for teaching Physics III.">
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #f7f7f5;
+            --card: #ffffff;
+            --text: #1d1d1f;
+            --muted: #5f6368;
+            --line: #deded9;
+            --accent: #1f5fbf;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1b1b1b;
+                --card: #242424;
+                --text: #e6e6e6;
+                --muted: #a0a0a0;
+                --line: #383838;
+                --accent: #8cb4ff;
+            }
+        }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            line-height: 1.55;
+        }
+        main {
+            max-width: 44rem;
+            margin: 0 auto;
+            padding: 3rem 16px 4rem;
+        }
+        h1 { font-size: 1.8rem; margin: 0 0 0.4rem; }
+        h2 { font-size: 1.25rem; margin: 0 0 0.4rem; }
+        p { margin: 0 0 0.8rem; }
+        a { color: var(--accent); }
+        .lead { color: var(--muted); margin-bottom: 2rem; }
+        .applet {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 1.2rem 1.4rem;
+        }
+        .applet ul { margin: 0 0 0.9rem; padding-left: 1.2rem; }
+        .open {
+            display: inline-block;
+            background: var(--accent);
+            color: var(--bg);
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.45rem 1rem;
+            border-radius: 6px;
+            margin-right: 0.8rem;
+        }
+        .note { color: var(--muted); font-size: 0.9rem; margin-top: 0.9rem; }
+        footer { color: var(--muted); font-size: 0.9rem; margin-top: 2.5rem; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Physics III applets</h1>
+    <p class="lead">Interactive applets for teaching Physics III. They run in the browser; nothing to install.</p>
+
+    <section class="applet">
+        <h2>Optics Bench</h2>
+        <p>Build optical setups and see what they do.</p>
+        <ul>
+            <li><strong>Ray optics:</strong> objects on a lawn, lenses, apertures and glass prisms. See what an eye
+                and a screen see, ray traced on the GPU.</li>
+            <li><strong>Fourier optics (4f):</strong> diffraction, spatial filtering and phase contrast with scalar
+                wave optics.</li>
+        </ul>
+        <a class="open" href="optics-bench/">Open Optics Bench</a>
+        <a href="https://github.com/MoritzFS/Physics-III-teaching-applets/tree/main/optics_bench">How to use it</a>
+        <p class="note">Needs a browser with WebGPU: Chrome or Edge, Safari 26 or newer, or Firefox with WebGPU.
+            There is also a desktop app.</p>
+    </section>
+
+    <footer>
+        Source code on <a href="https://github.com/MoritzFS/Physics-III-teaching-applets">GitHub</a>.
+    </footer>
+</main>
+</body>
+</html>
