@@ -158,9 +158,9 @@ jobs:
       - { id: d, uses: actions/deploy-pages@v4 }
 ```
 
-- **The owner has to turn Pages on** (the cloud session may lack admin
-  rights): Settings → Pages → Source: **GitHub Actions**, or
-  `gh api -X POST repos/MoritzFS/Physics-III-teaching-applets/pages -f build_type=workflow`.
+- **Pages is already turned on** (source: GitHub Actions, 2026-09-25). The
+  site URL is https://moritzfs.github.io/Physics-III-teaching-applets/ and
+  stays empty until the workflow above has run once.
 
 ### Task 7: document
 - In `optics_bench/README.md`: add the web link and a "Web version" section
