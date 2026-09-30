@@ -30,6 +30,10 @@ jobs:
         with:
           workspaces: optics_bench
 
+      # the sound output (cpal) needs the ALSA headers on Linux
+      - name: System libraries for the native build
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
       - name: Optics Bench tests (native)
         working-directory: optics_bench
         run: cargo test --release
