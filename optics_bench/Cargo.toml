@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
+cpal = "0.15.3"
 eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "default_fonts", "persistence"] }
 glam = { version = "0.33.9", features = ["bytemuck", "serde"] }
 log = "0.4.34"
@@ -23,6 +24,8 @@ png = "0.18.1"
 eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "default_fonts", "persistence", "x11"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# sound through WebAudio
+cpal = { version = "0.15.3", features = ["wasm-bindgen"] }
 js-sys = "0.3.105"
 wasm-bindgen = "0.2.128"
 wasm-bindgen-futures = "0.4.78"

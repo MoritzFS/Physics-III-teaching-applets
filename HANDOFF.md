@@ -266,3 +266,22 @@ the summary what was and wasn't verified.
   backend, which is never used.
 - If a second egui applet goes onto the same site, both would share eframe's
   `egui_memory_ron` key. Override `persist_egui_memory` on the web.
+
+## 8. Dispersion, sound and rainbow benches (2026-09-30)
+
+These three benches were first written in the stale desktop copy (iCloud),
+which had branched off before the web port. They were brought over as one
+commit on top of `c22e74e` and merged into `main`, so the history shows both.
+
+**Web adaptations**
+- `worker.rs` (dispersion space–time view, thunder synthesis, rainbow tables
+  and sky) computes in place in the browser: in `poll`, at most once per
+  frame, for the newest request, like `fourier::Engine`.
+- `std::time::Instant` → `web_time::Instant` on wasm (`sound.rs`,
+  `dispersion.rs`, `rainbow_ui.rs`).
+- Sound: `cpal` with its `wasm-bindgen` feature (Web Audio) on wasm.
+- Rainbow: white light in 10 nm steps and the sky at 1 px per point on the
+  web (native: 5 nm, up to 1.5 px per point). Single-threaded native timing:
+  tables 40 ms, sky 18 ms at 1400×420.
+- Module doc formulas are in ```` ```text ```` blocks: since the split into
+  `lib.rs`, `cargo test` runs doc tests, and indented lines count as code.

@@ -14,6 +14,12 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
   - `src/configs.rs`: saving configurations as JSON.
   - `src/fourier.rs`: 4f wave-optics engine and its examples.
   - `src/fourier_ui.rs`: 4f user interface.
+  - `src/dispersion.rs`, `src/dispersion_ui.rs`: dispersion bench (wave packets).
+  - `src/sound.rs`, `src/sound_ui.rs`, `src/audio.rs`: its sound tab (thunder,
+    whistlers) and sound output (cpal; Web Audio in the browser).
+  - `src/rainbow.rs`, `src/rainbow_ui.rs`: rainbow bench (PS02, exercise 8).
+  - `src/worker.rs`: newest-request-only background work (in place on the web).
+  - `src/lib.rs`, `src/main.rs`, `src/web.rs`: start-up and browser helpers.
   - `optics_bench/README.md` explains features and physics.
 - One folder per applet; the repo root holds the landing page and CI.
 
@@ -30,5 +36,7 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
   macOS with the screenshot hook (`OPTICS_SHOT=...`, see `shot.sh`).
 - The owner teaches with this. Keep physics statements in notes and UI text
   correct, and say so when something is an approximation.
+- Work only in this repo (`~/Documents/phd_local/...`). The old copy in the
+  owner's iCloud folder is stale; never run git there.
 - Match the surrounding code style: short doc comments and descriptive names.
   Don't commit build output (`target/`, `dist/`, `*.app`).

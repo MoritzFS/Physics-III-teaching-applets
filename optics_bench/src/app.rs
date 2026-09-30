@@ -7,6 +7,10 @@ use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
 use crate::configs::{self, ConfigFile, SavedView};
+use crate::dispersion::{DispParams, DispPreset, Tab};
+use crate::dispersion_ui::DispUi;
+use crate::rainbow::{RainbowParams, RainbowPreset};
+use crate::rainbow_ui::RainbowUi;
 use crate::fourier::{FourierParams, FourierPreset};
 use crate::fourier_ui::{FourierUi, Mode};
 use crate::gpu::{self, FrameData, Globals, Gpu, ViewUniform, T_EYE, T_OVERVIEW, T_SCREEN};
@@ -165,6 +169,11 @@ struct Persist {
     mode: Mode,
     #[serde(default)]
     fourier: Option<(FourierParams, String)>,
+    /// the dispersion bench and the notes of its two tabs
+    #[serde(default)]
+    dispersion: Option<(DispParams, String, String)>,
+    #[serde(default)]
+    rainbow: Option<(RainbowParams, String)>,
 }
 
 enum Drag {
@@ -177,9 +186,11 @@ enum Drag {
 }
 
 pub struct OpticsApp {
-    /// ray-optics bench or 4f Fourier bench
+    /// ray-optics bench, 4f Fourier bench, dispersion bench or rainbow bench
     mode: Mode,
     four: FourierUi,
+    disp: DispUi,
+    bow: RainbowUi,
     scene: Scene,
     settings: Settings,
     selected: Option<u32>,
@@ -238,6 +249,8 @@ impl OpticsApp {
         let mut app = OpticsApp {
             mode: Mode::Ray,
             four: FourierUi::default(),
+            disp: DispUi::default(),
+            bow: RainbowUi::default(),
             scene: Scene::default(),
             settings: Settings::default(),
             selected: None,
@@ -276,6 +289,15 @@ impl OpticsApp {
                     app.four.params = params;
                     app.four.notes = notes;
                 }
+                if let Some((params, notes, sound_notes)) = p.dispersion {
+                    app.disp.params = params;
+                    app.disp.notes = notes;
+                    app.disp.sound_notes = sound_notes;
+                }
+                if let Some((params, notes)) = p.rainbow {
+                    app.bow.params = params;
+                    app.bow.notes = notes;
+                }
             }
         }
         if let Some(rs) = cc.wgpu_render_state.as_ref() {
@@ -291,8 +313,19 @@ impl OpticsApp {
                 app.mode = Mode::Fourier;
                 app.four.load_preset(FourierPreset::ALL[i.min(FourierPreset::ALL.len() - 1)]);
             }
+            if let Some(i) = std::env::var("OPTICS_DISPERSION").ok().and_then(|p| p.parse::<usize>().ok()) {
+                app.mode = Mode::Dispersion;
+                app.disp.load_preset(DispPreset::ALL[i.min(DispPreset::ALL.len() - 1)]);
+            }
+            if let Some(i) = std::env::var("OPTICS_RAINBOW").ok().and_then(|p| p.parse::<usize>().ok()) {
+                app.mode = Mode::Rainbow;
+                app.bow.load_preset(RainbowPreset::ALL[i.min(RainbowPreset::ALL.len() - 1)]);
+            }
             if let Ok(path) = std::env::var("OPTICS_LOAD") {
                 app.load_config(&std::path::PathBuf::from(path));
+            }
+            if let Some(f) = std::env::var("OPTICS_DISP_T").ok().and_then(|p| p.parse::<f64>().ok()) {
+                app.disp.set_time_fraction(f);
             }
             if let Some(i) = std::env::var("OPTICS_SELECT").ok().and_then(|p| p.parse::<usize>().ok()) {
                 app.selected = app.scene.elements.get(i).map(|e| e.id);
@@ -1809,6 +1842,24 @@ impl OpticsApp {
                         }
                     }
                 });
+                ui.menu_button("Examples: dispersion", |ui| {
+                    for p in DispPreset::ALL {
+                        if ui.button(p.label()).clicked() {
+                            self.disp.load_preset(p);
+                            self.mode = Mode::Dispersion;
+                            ui.close();
+                        }
+                    }
+                });
+                ui.menu_button("Examples: rainbow", |ui| {
+                    for p in RainbowPreset::ALL {
+                        if ui.button(p.label()).clicked() {
+                            self.bow.load_preset(p);
+                            self.mode = Mode::Rainbow;
+                            ui.close();
+                        }
+                    }
+                });
                 let saved = configs::list();
                 ui.add_enabled_ui(!saved.is_empty(), |ui| {
                     ui.menu_button("My configurations", |ui| {
@@ -1847,6 +1898,8 @@ impl OpticsApp {
                 ui.label("• EYE: pixels are points on the retina. Rays go through the pupil, the eye lens (which accommodates) and all optics on the bench.");
                 ui.label("• SCREEN: every point of the screen collects the light that comes through the lens, aperture or prism in front of it, like in a dark room.");
                 ui.label("• FOURIER OPTICS (4f): switch in the menu bar. Scalar wave optics: input field (colour = phase, brightness = amplitude, plus the wavefront along the centre line), Fraunhofer pattern in the Fourier plane with a filter, filtered image, and the propagation through the whole system. Scroll in a panel to zoom, drag in the Fourier plane to size the filter.");
+                ui.label("• DISPERSION: a pulse (Gaussian, delta, switched wave or a few frequencies) travels through a medium with refractive index n(ω). Top: the wave; middle: its path in space and time and the signal at an observer (press 'listen'); bottom: the dispersion relation — drag its white points, click to pick frequency components. The second tab plays thunder from different distances and a whistler.");
+                ui.label("• RAINBOW: sunlight in spherical drops (PS02, exercise 8). Top: the rays in one drop (drag to move the ray), the deviation δ(θ) for each colour, and a side view of you and the rain; middle: the sky with the bows; bottom: light, drop and which light paths to show. Pick an angle by dragging the yellow line, the drop in the side view, or by clicking in the sky.");
                 ui.label(if cfg!(target_arch = "wasm32") {
                     "• Save scenes (with notes for students) via Scene → Save / manage configurations. They are kept in this browser; download them as .json files to keep or share them, and open a .json file with Open .json… or by dropping it onto the page. The files also work in the desktop app."
                 } else {
@@ -1858,6 +1911,13 @@ impl OpticsApp {
             ui.separator();
             ui.selectable_value(&mut self.mode, Mode::Ray, "Ray optics bench");
             ui.selectable_value(&mut self.mode, Mode::Fourier, "Fourier optics (4f)");
+            ui.selectable_value(&mut self.mode, Mode::Dispersion, "Dispersion");
+            ui.selectable_value(&mut self.mode, Mode::Rainbow, "Rainbow");
+            if self.mode == Mode::Dispersion {
+                ui.separator();
+                ui.selectable_value(&mut self.disp.params.tab, Tab::Waves, "wave packets");
+                ui.selectable_value(&mut self.disp.params.tab, Tab::Sound, "sound: thunder & whistler");
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.weak("Optics Bench");
             });
@@ -1931,6 +1991,11 @@ impl OpticsApp {
             mode: self.mode,
             fourier: Some(self.four.params.clone()),
             fourier_notes: self.four.notes.clone(),
+            dispersion: Some(self.disp.params.clone()),
+            dispersion_notes: self.disp.notes.clone(),
+            sound_notes: self.disp.sound_notes.clone(),
+            rainbow: Some(self.bow.params.clone()),
+            rainbow_notes: self.bow.notes.clone(),
         }
     }
 
@@ -1966,6 +2031,15 @@ impl OpticsApp {
                 if let Some(fp) = cfg.fourier {
                     self.four.params = fp;
                     self.four.notes = cfg.fourier_notes;
+                }
+                if let Some(dp) = cfg.dispersion {
+                    self.disp.params = dp;
+                    self.disp.notes = cfg.dispersion_notes;
+                    self.disp.sound_notes = cfg.sound_notes;
+                }
+                if let Some(rp) = cfg.rainbow {
+                    self.bow.params = rp;
+                    self.bow.notes = cfg.rainbow_notes;
                 }
                 self.configs.message = Some((format!("Opened '{}'", cfg.name), true));
                 self.configs.name = cfg.name;
@@ -2010,7 +2084,13 @@ impl OpticsApp {
                     save = valid && (clicked || enter);
                 });
                 ui.label("Notes, shown when the scene is opened (e.g. a task for the students):");
-                let notes = if self.mode == Mode::Fourier { &mut self.four.notes } else { &mut self.scene.notes };
+                let notes = match self.mode {
+                    Mode::Fourier => &mut self.four.notes,
+                    Mode::Dispersion if self.disp.params.tab == Tab::Sound => &mut self.disp.sound_notes,
+                    Mode::Dispersion => &mut self.disp.notes,
+                    Mode::Rainbow => &mut self.bow.notes,
+                    Mode::Ray => &mut self.scene.notes,
+                };
                 ui.add(egui::TextEdit::multiline(notes).desired_rows(3).desired_width(f32::INFINITY));
                 #[cfg(target_arch = "wasm32")]
                 ui.horizontal(|ui| {
@@ -2156,6 +2236,22 @@ impl eframe::App for OpticsApp {
             self.debug_shot(&ctx);
             return;
         }
+        if self.mode == Mode::Dispersion {
+            self.disp.update(&ctx);
+            self.disp.ui(ui);
+            self.config_window_ui(&ctx);
+            self.handle_dropped_files(&ctx);
+            self.debug_shot(&ctx);
+            return;
+        }
+        if self.mode == Mode::Rainbow {
+            self.bow.update(&ctx);
+            self.bow.ui(ui);
+            self.config_window_ui(&ctx);
+            self.handle_dropped_files(&ctx);
+            self.debug_shot(&ctx);
+            return;
+        }
         let win_h = ctx.content_rect().height();
         egui::Panel::top("views")
             .resizable(true)
@@ -2216,6 +2312,8 @@ impl eframe::App for OpticsApp {
                 orbit: self.orbit,
                 mode: self.mode,
                 fourier: Some((self.four.params.clone(), self.four.notes.clone())),
+                dispersion: Some((self.disp.params.clone(), self.disp.notes.clone(), self.disp.sound_notes.clone())),
+                rainbow: Some((self.bow.params.clone(), self.bow.notes.clone())),
             },
         );
     }
