@@ -1,6 +1,7 @@
 # Optics Bench
 
-An interactive optics bench on a lawn, for teaching geometrical optics.
+An interactive optics bench on a lawn, for teaching geometrical optics,
+with a Fourier-optics (4f) bench and a dispersion bench (wave packets, thunder).
 Written in Rust. egui draws the interface and wgpu (Metal on macOS) runs the
 GPU ray tracer.
 
@@ -29,7 +30,7 @@ or, during development:
 cargo run --release
 ```
 
-`bundle.sh` puts the app bundle next to this folder, in the repository root. It is git-ignored.
+The build output goes to `target.nosync/` so that iCloud doesn't sync it.
 
 ## Using it
 
@@ -117,6 +118,144 @@ tests check the fringe spacing λf/d, the first Airy zero 1.22 λf/D, the Talbot
 length 2p²/λ, and that the unfiltered image is the inverted object. One update
 takes about 15 ms at 512² and 35 ms at 1024² on a background thread.
 
+## Dispersion
+
+Switch with **Dispersion** in the menu bar. It has two tabs.
+
+### Wave packets
+
+A pulse travels through a medium with refractive index n(ω). Everything is
+computed exactly (1D, linear, scalar): the pulse is the signal s(t) arriving at
+the entrance x = 0, and every frequency travels with its own k(ω) = n(ω) ω/c:
+
+```
+ψ(x, t) = Σ_ω S(ω) exp(i (k(ω) x − ω t)),      u = Re ψ
+```
+
+In front of the medium (x < 0, optional) is vacuum; reflections at the entrance
+are left out. A complex n(ω) also gives absorption. Units: the period T₀ and the
+vacuum wavelength λ₀ of the reference frequency ω₀ (c = 1).
+
+* **Wave** (top): u(x, t) with its envelope |ψ|. Optional colour = local
+  wavelength (red: longer than at the carrier), a green triangle moving with
+  v_g and an orange dot riding on a crest of the carrier (v_p). Picked
+  frequency components are drawn in lanes underneath, each a plane wave with
+  its own phase velocity. Play/pause with the space bar; scroll to zoom, drag
+  to pan, double-click to see everything. Drag the yellow line to move the
+  observer.
+* **Space–time** (middle): |ψ(x, t)| (or u) in the x–t plane, time running
+  down, with the v_g and v_p lines. Click to jump in time. On the right, the
+  signal u(t) at the observer; **listen** plays it as sound (the whole run in
+  about 2.5 s) while the time line follows.
+* **Dispersion relation** (bottom left): n(ω) with the group index
+  n_g = c dk/dω and the absorption Im n, or ω(k) with the secant (v_p) and the
+  tangent (v_g) at the carrier, or v_p(ω) and v_g(ω). The spectrum of the pulse
+  is shaded underneath. Drag the white points to change the medium; click to
+  pick (or remove) frequency components.
+* **Pulse**: Gaussian (duration, carrier, chirp; buttons for a few-cycle pulse
+  and a long, nearly monochromatic one), delta (all frequencies up to a
+  limit), a switched-on/off wave, or only the picked frequencies (beats).
+* **Medium**: no dispersion; Taylor expansion (phase index, group index, GVD,
+  TOD, each set independently); glass (Cauchy); a resonance (Lorentz
+  oscillator, with absorption); a cutoff (plasma, waveguide); a power law
+  ω ~ k^m (deep water m = ½, capillary ripples 3/2, matter waves 2); or a free
+  form drawn by hand. "Make it linear" replaces the medium by a constant n.
+* **Examples** (Scene → Examples: dispersion): packet without dispersion,
+  v_p ≠ v_g, spreading and chirp, a long packet, delta pulse through glass,
+  two-frequency beats, chirped pulse compression, near a resonance, cutoff,
+  deep-water waves, capillary ripples, matter wave, draw your own n(ω).
+
+Unit tests check that without dispersion the pulse keeps its shape, that the
+envelope moves with dω/dk, the Gaussian broadening σ√(1 + (L/L_D)²), the
+position and depth of chirped-pulse compression, v_g/v_p for the power laws,
+v_p·v_g = c² for the waveguide, and that nothing wraps around in time.
+
+### Sound: thunder and whistlers
+
+* **Thunder**: the lightning channel is a random zig-zag (about 10 km with
+  branches, tortuous down to the metre scale). Every piece sends out the same
+  6 ms N-wave at the moment of the flash; pieces seen side-on arrive together
+  (claps), pieces seen end-on are smeared out (rumble). On the way the sound
+  falls off as 1/r and is absorbed by air as in ISO 9613-1 (20 °C, 70 %
+  humidity: ~0.2 dB/km at 100 Hz, 5 dB/km at 1 kHz, 23 dB/km at 4 kHz). Close
+  by the thunder starts with a sudden, bright crack; far away the high
+  frequencies are gone and it is a soft, low rumble. Drag yourself in the side
+  view or use the distance buttons; the spectrogram shows what you hear, with
+  the arrival of the nearest and farthest part of the channel. The same
+  relaxation processes of O₂ and N₂ that absorb also make sound dispersive,
+  but only by ~0.02 m/s: over 10 km that is a few milliseconds. The
+  dispersion can be switched on and exaggerated (×1 … ×5000) to hear what it
+  would do (each clap becomes a falling chirp). So the honest answer to "why
+  is far thunder a rumble" is absorption plus the long channel, not
+  dispersion.
+* **Whistler**: the radio click of lightning, dispersed on its way along a
+  magnetic field line through the magnetosphere (whistler mode, ω ~ k²):
+  group delay t(f) = D/√f, optionally with a nose frequency, echoes between
+  the hemispheres and background crackle (sferics). This is real dispersion
+  that you can hear with a VLF receiver.
+
+To save the sounds as WAV files (with a PNG of waveform and spectrogram):
+
+```bash
+DUMP_DIR=/some/folder cargo test --release -- sound::debug --ignored
+```
+
+## Rainbow
+
+Switch with **Rainbow** in the menu bar. Sunlight in spherical drops, as in
+exercise 8 of PS02. A ray hits a drop at the height b (radius 1), so
+sin θ = b and inside sin θ = n sin φ. After k internal reflections it leaves
+turned by D = 2(θ − φ) + k(π − 2φ), and you see it at the angle δ from the
+antisolar point (for k = 1: δ = 4φ − 2θ). Where δ is extreme (the Descartes ray,
+cos²θ = (n² − 1)/((k+1)² − 1)) the rays pile up: that is the bow.
+
+```
+┌ DROP ─────────────┬ DEVIATION δ(θ) ──────┬ OBSERVER (side view) ─┐
+├ SKY ──────────────┴──────────────────────┴───────────────────────┤
+├ LIGHT ──────┬ DROP ──────┬ LIGHT PATHS ───────┬ VIEW ────────────┤
+```
+
+* **Drop**: the picked ray split into its colours, a fan of rays evenly spaced
+  in b, the light lost at each surface (with its share of the power) and the
+  angles θ, φ, δ as in figure 8 of the exercise. Drag to move the ray,
+  double-click for the Descartes ray. "Rays to your eye" shows the rays that
+  leave at the picked angle instead: two per colour below the bow, none above.
+* **Deviation δ(θ)** for every colour and the chosen orders, with the maxima
+  (42.4° / 40.5° for the exercise's red and blue). The shaded band is the
+  spread of the colours: zero for the central ray, 1.9° at the Descartes ray,
+  2.5° for grazing rays. On the right, the colour and brightness of the sky at
+  each δ. The yellow line is the picked angle (drag it); its dots are the rays
+  that leave at that angle. "against b" plots against b = sin θ.
+* **Observer**: you, the sunlight from behind, the rain, the directions of the
+  bows, and the picked drop with its cone of light. Drag the drop to pick an
+  angle. The swatch shows what reaches your eye from there.
+* **Sky**: a panorama (azimuth and elevation linear) away from the sun or
+  towards it. Click to pick an angle; all drops on the dashed circle look the
+  same.
+* **Light**: 405 + 707 nm (the exercise), one wavelength, 8 lines or white
+  sunlight; the sun's diameter (0 = a point as in the exercise, 0.53° real);
+  its elevation; a polariser.
+* **Drop**: water at 10 °C (Cauchy fit through the exercise's
+  n(707 nm) = 1.331 and n(405 nm) = 1.344), sea water, glass beads
+  (n = 1.52, 1.90) or any n; dispersion ×0 … ×10; Fresnel losses on/off.
+* **Light paths**: reflection off the surface and k = 0 … 4 internal
+  reflections, each with its share of the light that hits a drop (88 %, 4.1 %,
+  0.6 %, 0.2 %, 0.1 % for k = 0 … 3, 6.6 % reflected).
+* **Examples** (Scene → Examples: rainbow): exercise 8, why a bow (caustic),
+  dispersion as a function of the angle, which drop sends which colour,
+  secondary bow and Alexander's dark band, the real sun, polarisation, sun too
+  high, sea spray, glass beads and retroreflectors, 3rd and 4th order towards
+  the sun, two rays in one direction (outlook to interference).
+
+The brightness is the power per solid angle: every path carries the Fresnel
+factors (1 − R)² Rᵏ for s and p, the drop is filled evenly (weight 2b db), and
+the result is divided by sin δ and convolved with the sun's disk. White light
+uses the CIE colour matching functions. It is ray optics: supernumerary bows
+and fogbows (Airy theory) are not included. Unit tests check 42.37° / 40.51°
+and θ_max from the exercise, the Descartes formula against a brute-force
+search, energy conservation over all orders, the ~92 % polarisation, and that
+the sky is brighter inside the bow and dark in Alexander's band.
+
 ## Saving configurations
 
 **Scene → Save / manage configurations…** (or Cmd+S) saves the current scene,
@@ -191,4 +330,12 @@ tree are mostly on one side.
 | `src/configs.rs` | saving and loading configurations (JSON) |
 | `src/fourier.rs` | wave optics of the 4f system (FFT, angular spectrum), 4f examples |
 | `src/fourier_ui.rs` | user interface of the 4f bench |
-| `shot.sh` | saves a screenshot of an example or a saved configuration, e.g. for slides |
+| `src/dispersion.rs` | pulse propagation in a dispersive medium, media, dispersion examples |
+| `src/dispersion_ui.rs` | user interface of the dispersion bench (wave packets) |
+| `src/sound.rs` | thunder and whistler synthesis, air absorption (ISO 9613-1) |
+| `src/sound_ui.rs` | user interface of the sound tab |
+| `src/audio.rs` | sound output (cpal) |
+| `src/rainbow.rs` | rays in a drop, Fresnel weights, sky brightness, rainbow examples |
+| `src/rainbow_ui.rs` | user interface of the rainbow bench |
+| `src/worker.rs` | background thread for the newest request |
+| `shot.sh` | saves a screenshot of an example or a saved configuration, e.g. for slides (`d3` = dispersion example 3, `r0` = rainbow example 0) |

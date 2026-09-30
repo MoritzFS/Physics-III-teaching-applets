@@ -15,6 +15,8 @@ pub enum Mode {
     #[default]
     Ray,
     Fourier,
+    Dispersion,
+    Rainbow,
 }
 
 /// everything of a result except the images (those live in textures)

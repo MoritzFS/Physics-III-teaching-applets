@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
+cpal = "0.15.3"
 eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "default_fonts", "persistence"] }
 env_logger = "0.11.11"
 glam = { version = "0.33.9", features = ["bytemuck", "serde"] }

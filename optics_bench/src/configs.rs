@@ -7,8 +7,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::dispersion::DispParams;
 use crate::fourier::FourierParams;
 use crate::fourier_ui::Mode;
+use crate::rainbow::RainbowParams;
 use crate::scene::Scene;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -34,6 +36,18 @@ pub struct ConfigFile {
     pub fourier: Option<FourierParams>,
     #[serde(default)]
     pub fourier_notes: String,
+    /// the dispersion bench, with the notes of its two tabs
+    #[serde(default)]
+    pub dispersion: Option<DispParams>,
+    #[serde(default)]
+    pub dispersion_notes: String,
+    #[serde(default)]
+    pub sound_notes: String,
+    /// the rainbow bench
+    #[serde(default)]
+    pub rainbow: Option<RainbowParams>,
+    #[serde(default)]
+    pub rainbow_notes: String,
 }
 
 pub struct Entry {
@@ -115,6 +129,11 @@ mod tests {
                 mode: Mode::Fourier,
                 fourier: Some(FourierParams::default()),
                 fourier_notes: "x".into(),
+                dispersion: Some(DispParams::default()),
+                dispersion_notes: "y".into(),
+                sound_notes: "z".into(),
+                rainbow: Some(RainbowParams::default()),
+                rainbow_notes: "r".into(),
             };
             let json = serde_json::to_string_pretty(&cfg).unwrap();
             let back: ConfigFile = serde_json::from_str(&json).unwrap();
@@ -131,6 +150,11 @@ mod tests {
             mode: Mode::Ray,
             fourier: None,
             fourier_notes: String::new(),
+            dispersion: None,
+            dispersion_notes: String::new(),
+            sound_notes: String::new(),
+            rainbow: None,
+            rainbow_notes: String::new(),
         };
         let path = save(&cfg).unwrap();
         assert!(list().iter().any(|e| e.name == "zz test config"));
@@ -148,9 +172,14 @@ mod tests {
             mode: Mode::Ray,
             fourier: None,
             fourier_notes: String::new(),
+            dispersion: None,
+            dispersion_notes: String::new(),
+            sound_notes: String::new(),
+            rainbow: None,
+            rainbow_notes: String::new(),
         })
         .unwrap();
-        for key in ["view", "mode", "fourier", "fourier_notes"] {
+        for key in ["view", "mode", "fourier", "fourier_notes", "dispersion", "dispersion_notes", "sound_notes", "rainbow", "rainbow_notes"] {
             v.as_object_mut().unwrap().remove(key);
         }
         v["scene"].as_object_mut().unwrap().remove("notes");
