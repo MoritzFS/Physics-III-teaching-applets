@@ -253,7 +253,10 @@ cos²θ = (n² − 1)/((k+1)² − 1)) the rays pile up: that is the bow.
 * **Drop**: the picked ray split into its colours, a fan of rays evenly spaced
   in b, the light lost at each surface (with its share of the power) and the
   angles θ, φ, δ as in figure 8 of the exercise. Drag to move the ray,
-  double-click for the Descartes ray. "Rays to your eye" shows the rays that
+  double-click for the Descartes ray, or press **▶ sweep** to move it from
+  the centre to the edge and back. At the exit, the dashed lines are the
+  directions of the Descartes rays and the red wedge beyond them is where no
+  ray of this order goes; the readout shows the largest δ reached so far. "Rays to your eye" shows the rays that
   leave at the picked angle instead: two per colour below the bow, none above.
 * **Deviation δ(θ)** for every colour and the chosen orders, with the maxima
   (42.4° / 40.5° for the exercise's red and blue). The shaded band is the

@@ -24,6 +24,12 @@ const DROP_EDGE: Color32 = Color32::from_rgb(150, 190, 245);
 const BG: Color32 = Color32::from_gray(16);
 const LABEL: Color32 = Color32::from_gray(170);
 
+/// seconds for the swept ray to cross the drop from the centre to the edge
+const SWEEP_SECONDS: f32 = 6.0;
+/// where no ray of the order goes: in the δ(θ) plot and as a wedge at the exit
+const FORBIDDEN: Color32 = Color32::from_rgba_premultiplied(60, 18, 16, 60);
+const WEDGE: Color32 = Color32::from_rgba_premultiplied(130, 38, 32, 120);
+
 const ORDER_LABEL: [&str; K_MAX + 1] =
     ["k = 0: straight through", "k = 1: primary bow", "k = 2: secondary bow", "k = 3: 3rd order", "k = 4: 4th order"];
 
@@ -54,12 +60,28 @@ pub struct RainbowUi {
     sky: Option<(TextureHandle, SkyGeom)>,
     sky_millis: f32,
     dev_drag: Option<DevDrag>,
+    /// the picked ray moves across the drop by itself
+    sweep: bool,
+    sweep_dir: f32,
+    /// the most extreme δ of the reddest shown colour since the sweep started (degrees)
+    sweep_extreme: Option<f64>,
 }
 
 impl Default for RainbowUi {
     fn default() -> Self {
         let (params, notes) = RainbowPreset::Exercise.setup();
-        RainbowUi { params, notes, worker: None, tables: None, sky: None, sky_millis: 0.0, dev_drag: None }
+        RainbowUi {
+            params,
+            notes,
+            worker: None,
+            tables: None,
+            sky: None,
+            sky_millis: 0.0,
+            dev_drag: None,
+            sweep: false,
+            sweep_dir: 1.0,
+            sweep_extreme: None,
+        }
     }
 }
 
@@ -292,18 +314,51 @@ impl RainbowUi {
                     });
             });
         });
-        let (rect, resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
+        let avail = ui.available_size();
+        let (rect, resp) = ui.allocate_exact_size(vec2(avail.x, (avail.y - 28.0).max(40.0)), Sense::click_and_drag());
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 3.0, BG);
-        let r = (rect.height().min(rect.width()) * 0.37).max(10.0);
+        // room around the drop for the wedge at the exit
+        let r = (rect.height().min(rect.width()) * 0.34).max(10.0);
         let c = pos2(rect.left() + rect.width() * 0.58, rect.center().y);
         if resp.double_clicked() {
             p.snap_to_descartes();
+            self.sweep = false;
         } else if (resp.dragged() || resp.clicked())
             && let Some(q) = resp.interact_pointer_pos()
         {
             p.b = ((c.y - q.y) / r).clamp(0.0, 0.999);
             p.drop_rays = DropRays::Picked;
+            self.sweep = false;
+        }
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            if ui
+                .button(if self.sweep { "⏸ stop" } else { "▶ sweep" })
+                .on_hover_text("move the ray from the centre of the drop to its edge and back")
+                .clicked()
+            {
+                self.sweep = !self.sweep;
+                self.sweep_extreme = None;
+                p.drop_rays = DropRays::Picked;
+            }
+            ui.label("height b");
+            if ui.add(egui::Slider::new(&mut p.b, 0.0..=0.999).custom_formatter(|v, _| format!("{v:.3}"))).changed() {
+                p.drop_rays = DropRays::Picked;
+                self.sweep = false;
+            }
+        });
+        if self.sweep {
+            let dt = ui.input(|i| i.stable_dt).min(0.1);
+            p.b += self.sweep_dir * dt / SWEEP_SECONDS;
+            if p.b >= 0.999 {
+                p.b = 0.999;
+                self.sweep_dir = -1.0;
+            } else if p.b <= 0.0 {
+                p.b = 0.0;
+                self.sweep_dir = 1.0;
+            }
+            ui.ctx().request_repaint();
         }
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
@@ -336,6 +391,7 @@ impl RainbowUi {
                 let (pts, _) = drop_path(c, r, b, n_mid, k);
                 painter.line_segment([pos2(rect.left(), pts[0].y), pts[0]], Stroke::new(1.8, Color32::WHITE));
                 self_lost_light(&painter, c, r, b, n_mid, k, big);
+                limit_marks(&painter, c, r, b, p, k);
                 angle_marks(&painter, c, r, b, n_mid, k);
             }
             DropRays::ToEye => {
@@ -382,7 +438,20 @@ impl RainbowUi {
                 } else {
                     t += &format!("\nφ = {:.2}°\nδ = {:.2}°", pa[0].phi / DEG, pa[0].delta / DEG);
                 }
-                t + &format!("\nthis path: {} of the ray", fmt_pct(100.0 * (s + pp)))
+                t += &format!("\nthis path: {} of the ray", fmt_pct(100.0 * (s + pp)));
+                // the bow of the reddest colour: no ray goes beyond it
+                let red = *shown.last().unwrap();
+                if let Some((d, is_max)) = extreme(p.n(red), k) {
+                    let word = if is_max { "largest" } else { "smallest" };
+                    t += &format!("\n{word} possible δ: {:.2}° ({red:.0} nm)", d / DEG);
+                    if self.sweep {
+                        let now = path(b, p.n(red), k).delta;
+                        let e = self.sweep_extreme.map_or(now, |x| if is_max { x.max(now) } else { x.min(now) });
+                        self.sweep_extreme = Some(e);
+                        t += &format!("\n{word} so far:    {:.2}°", e / DEG);
+                    }
+                }
+                t
             }
             DropRays::ToEye => {
                 let d = p.pick_deg as f64 * DEG;
@@ -544,10 +613,29 @@ impl RainbowUi {
                 }
             }
         }
+        // the bow of the order in the drop: no ray of it goes beyond this line
+        let k_main = p.main_order();
+        if let Some((d, is_max)) = extreme(p.n(*shown.last().unwrap()), k_main) {
+            let y = fy(d / DEG);
+            let col = Color32::from_rgb(235, 130, 120);
+            if orders.len() == 1 {
+                let far = if is_max { plot.top() } else { plot.bottom() };
+                clip.rect_filled(Rect::from_x_y_ranges(plot.x_range(), egui::Rangef::new(y.min(far), y.max(far))), 0.0, FORBIDDEN);
+            }
+            clip.line_segment([pos2(plot.left(), y), pos2(plot.right(), y)], Stroke::new(1.0, col));
+            let (anchor, dy) = if is_max { (Align2::LEFT_BOTTOM, -2.0) } else { (Align2::LEFT_TOP, 2.0) };
+            let word = if is_max { "above" } else { "below" };
+            clip.text(pos2(plot.left() + 4.0, y + dy), anchor, format!("no ray of order {k_main} {word} {:.1}°", d / DEG), FontId::proportional(10.0), col);
+        }
         // picked ray and picked angle
         if p.drop_rays == DropRays::Picked {
             let x = fx(p.b as f64);
             dashed(&clip, pos2(x, plot.top()), pos2(x, plot.bottom()), Stroke::new(1.0, Color32::from_white_alpha(150)));
+            // where the picked ray is on each curve
+            for &l in &shown {
+                let q = pos2(x, fy(path(p.b as f64, p.n(l), k_main).delta / DEG));
+                clip.circle(q, 4.0, line_color(l), Stroke::new(1.2, Color32::WHITE));
+            }
         }
         let yp = fy(p.pick_deg as f64);
         dashed(&clip, pos2(plot.left(), yp), pos2(plot.right(), yp), Stroke::new(1.4, PICK));
@@ -1014,6 +1102,38 @@ fn self_lost_light(painter: &egui::Painter, c: Pos2, r: f32, b: f64, n: f64, k: 
         let d = vec2(pa.dev.cos() as f32, pa.dev.sin() as f32);
         painter.line_segment([pts[j], pts[j] + d * big], faint(s + p));
         painter.text(pts[j] + d * r * 0.4, Align2::CENTER_CENTER, fmt_pct(100.0 * (s + p)), font.clone(), LABEL);
+    }
+}
+
+/// the bow of order k: its angle δ (rad) and whether no ray goes beyond it
+/// (a maximum of δ, as for k = 1) or none below it (a minimum, as for k = 2)
+fn extreme(n: f64, k: u32) -> Option<(f64, bool)> {
+    let d = descartes(n, k)?;
+    let b = d.theta.sin();
+    let side = path((b - 0.02).max(0.0), n, k).delta;
+    Some((d.delta, side < d.delta))
+}
+
+/// At the exit point: the directions of the Descartes rays (dashed) and the
+/// wedge beyond them, where no ray of this order ever goes. The total
+/// deviation D is smallest for the Descartes ray, for every k ≥ 1.
+fn limit_marks(painter: &egui::Painter, c: Pos2, r: f32, b: f64, p: &RainbowParams, k: u32) {
+    let shown = p.shown();
+    let ends = if shown.len() > 1 { vec![shown[0], *shown.last().unwrap()] } else { shown };
+    let limits: Vec<(f64, f64)> = ends.iter().filter_map(|&l| descartes(p.n(l), k).map(|d| (l, d.dev))).collect();
+    let Some(&(_, d_min)) = limits.iter().min_by(|a, b| a.1.total_cmp(&b.1)) else { return };
+    let (pts, _) = drop_path(c, r, b, p.n(589.0), k);
+    let pe = *pts.last().unwrap();
+    let len = r * 0.42;
+    let width = 35f32.to_radians();
+    let a0 = d_min as f32;
+    let mut wedge = vec![pe];
+    wedge.extend((0..=12).map(|i| pe + dir(a0 - width * i as f32 / 12.0) * len));
+    painter.add(Shape::convex_polygon(wedge, WEDGE, Stroke::NONE));
+    painter.text(pe + dir(a0 - 0.5 * width) * (len * 0.72), Align2::CENTER_CENTER, "no ray", FontId::proportional(10.0), Color32::from_rgb(255, 200, 190));
+    for (l, d) in limits {
+        let st = Stroke::new(1.2, line_color(l));
+        painter.extend(Shape::dashed_line(&[pe, pe + dir(d as f32) * len * 1.25], st, 4.0, 3.0));
     }
 }
 

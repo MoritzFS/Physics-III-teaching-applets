@@ -825,8 +825,10 @@ impl RainbowPreset {
                  once and refracted out. It comes back at δ = 4φ − 2θ from the direction opposite to the sun. δ has \
                  a maximum where sin²θ = (4 − n²)/3: 42.4° for red (707 nm, n = 1.331) and 40.5° for violet \
                  (405 nm, n = 1.344), the dots in the δ(θ) plot. Red comes back at larger angles, so it is on the \
-                 outside of the bow. Drag in the drop to move the ray; double-click for the ray of maximum δ \
-                 (the Descartes ray)."
+                 outside of the bow. Press ▶ sweep: the ray moves from the centre of the drop to its edge and \
+                 back. δ grows, stalls near the maximum and falls again; it never goes into the red wedge, and \
+                 'largest so far' never passes 42.37°. Drag in the drop to move the ray yourself; double-click \
+                 for the ray of maximum δ (the Descartes ray)."
             }
             RainbowPreset::Caustic => {
                 p.spectrum = Spectrum::Single;
