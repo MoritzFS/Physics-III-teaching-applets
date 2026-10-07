@@ -1425,8 +1425,8 @@ impl IfoUi {
                     ("H", 0.0, 0.0, "horizontal: in the plane of the table"),
                     ("V", 90.0, 0.0, "vertical"),
                     ("45°", 45.0, 0.0, "diagonal"),
-                    ("↺", 0.0, 45.0, "circular, counter-clockwise seen looking into the beam"),
-                    ("↻", 0.0, -45.0, "circular, clockwise seen looking into the beam"),
+                    ("↺", 0.0, 45.0, "left circular, (1, i)/√2 as in PS03: turns counter-clockwise seen looking into the beam"),
+                    ("↻", 0.0, -45.0, "right circular, (1, −i)/√2: turns clockwise seen looking into the beam"),
                 ] {
                     let on = (l.pol_deg - a).abs() < 1e-6 && (l.ellip_deg - e).abs() < 1e-6;
                     if ui.selectable_label(on, t).on_hover_text(hint).clicked() {

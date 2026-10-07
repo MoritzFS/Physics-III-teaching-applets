@@ -174,6 +174,14 @@ pub enum Groove {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FarAxis {
+    /// the path difference between neighbouring grooves, d(sin θ_m − sin θ_i)
+    Path,
+    /// the angle θ_m from the grating normal
+    Angle,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Axis {
     /// camera pixels
     Pixels,
@@ -216,8 +224,14 @@ pub struct GratingParams {
     pub view: (f64, f64),
     /// all directions instead of the camera
     pub far_field: bool,
+    /// far field: against the path difference or the angle
+    pub far_axis: FarAxis,
     /// far field: shown range of the path difference between neighbouring grooves (nm)
     pub far_view: (f64, f64),
+    /// far field: shown range of θ_m (rad)
+    pub far_view_rad: (f64, f64),
+    /// far field: also the same grating with N = 1 and N = 2 grooves
+    pub compare_few: bool,
     /// phasor picture: second wavelength, in units of the resolution limit λ/(mN)
     pub phasor_frac: f64,
 }
@@ -271,7 +285,10 @@ impl GratingParams {
             log: false,
             view: (0.0, 1.0),
             far_field: false,
+            far_axis: FarAxis::Path,
             far_view: (-2000.0, 2000.0),
+            far_view_rad: (-0.5, 0.5),
+            compare_few: false,
             phasor_frac: 1.0,
         }
     }
@@ -350,6 +367,16 @@ impl GratingParams {
             }
         }
         path.signum() as i32
+    }
+
+    /// the angle of incidence θ_i (radians, from the grating normal, as in the notes)
+    pub fn theta_i(&self) -> f64 {
+        -self.alpha()
+    }
+
+    /// turns the grating so that the light arrives at θ_i
+    pub fn set_theta_i(&mut self, theta_i: f64) {
+        self.angle_deg = -theta_i / DEG - 0.5 * self.arms_deg;
     }
 
     /// turns the grating so that order m of λ lands at the centre of the camera
@@ -658,18 +685,40 @@ pub fn record(p: &GratingParams) -> Recording {
 // ---------------------------------------------------------------- far field
 
 /// The light in all directions, against the path difference between
-/// neighbouring grooves x = d (sin θ_m − sin θ_i) (nm): the orders are at x = mλ.
+/// neighbouring grooves x = d (sin θ_m − sin θ_i) (the orders are at x = mλ),
+/// or against the angle θ_m.
 #[derive(Clone, Debug, Default)]
 pub struct FarField {
+    /// column centres on the shown axis: nm of path difference, or θ_m in rad
     pub x: Vec<f64>,
-    /// intensity relative to a line's order with full efficiency (peak 1)
+    /// intensity relative to an order of a line with full efficiency (peak 1)
     pub inten: Vec<f32>,
     pub rgb: Vec<[f32; 3]>,
+    /// the same grating with N = 1 and N = 2 grooves (for comparison)
+    pub few: Vec<(f64, Vec<f32>)>,
 }
 
-pub fn far_field(p: &GratingParams, cols: usize) -> FarField {
-    let (a, b) = p.far_view;
-    let cols = cols.max(16);
+impl GratingParams {
+    /// the path difference between neighbouring grooves (nm) for light leaving at θ_m
+    pub fn path_of_angle(&self, theta_m: f64) -> f64 {
+        self.d_mm() * 1e6 * (theta_m.sin() + self.alpha().sin())
+    }
+
+    /// the shown range of the far field on its own axis, and as path differences
+    pub fn far_range(&self) -> ((f64, f64), (f64, f64)) {
+        match self.far_axis {
+            FarAxis::Path => (self.far_view, self.far_view),
+            FarAxis::Angle => {
+                let (a, b) = self.far_view_rad;
+                ((a, b), (self.path_of_angle(a), self.path_of_angle(b)))
+            }
+        }
+    }
+}
+
+/// intensity and colour in columns between the path differences `edges` (increasing)
+fn far_columns(p: &GratingParams, edges: &[f64]) -> (Vec<f64>, Vec<[f64; 3]>) {
+    let cols = edges.len() - 1;
     let alpha = p.alpha();
     let sa = alpha.sin();
     let d = p.d_mm() * 1e6;
@@ -677,16 +726,12 @@ pub fn far_field(p: &GratingParams, cols: usize) -> FarField {
     let lamps: Vec<Lamp> = p.sources.iter().chain(&p.references).copied().collect();
     let lines = p.lines(&lamps);
     let white = lamps.contains(&Lamp::White);
-    let step = (b - a) / cols as f64;
-    let mut x = Vec::with_capacity(cols);
     let mut inten = vec![0.0f64; cols];
     let mut col = vec![[0.0f64; 3]; cols];
     let ov = 6;
     for k in 0..cols {
-        let xc = a + (k as f64 + 0.5) * step;
-        x.push(xc);
         for j in 0..ov {
-            let xs = a + (k as f64 + (j as f64 + 0.5) / ov as f64) * step;
+            let xs = edges[k] + (j as f64 + 0.5) / ov as f64 * (edges[k + 1] - edges[k]);
             let sb = xs / d - sa;
             if sb.abs() > 1.0 {
                 continue;
@@ -731,6 +776,7 @@ pub fn far_field(p: &GratingParams, cols: usize) -> FarField {
         }
     }
     // orders narrower than a column: make sure their peaks show
+    let (a, b) = (edges[0], edges[cols]);
     for &(nm, s, _) in &lines {
         let m0 = (a / nm).ceil() as i64;
         let m1 = (b / nm).floor() as i64;
@@ -740,19 +786,41 @@ pub fn far_field(p: &GratingParams, cols: usize) -> FarField {
             if sb.abs() > 1.0 {
                 continue;
             }
-            let k = (((xm - a) / step) as usize).min(cols - 1);
+            let k = edges.partition_point(|&e| e <= xm).clamp(1, cols) - 1;
             let v = s * p.efficiency(nm, alpha, sb.asin());
             if v > inten[k] {
                 inten[k] = v;
-                let rgb = lamp_rgb(nm);
-                col[k] = rgb;
+                col[k] = lamp_rgb(nm);
+            }
+        }
+    }
+    (inten, col)
+}
+
+pub fn far_field(p: &GratingParams, cols: usize) -> FarField {
+    let cols = cols.max(16);
+    let ((a, b), _) = p.far_range();
+    let axis: Vec<f64> = (0..=cols).map(|k| a + (b - a) * k as f64 / cols as f64).collect();
+    let edges: Vec<f64> = match p.far_axis {
+        FarAxis::Path => axis.clone(),
+        FarAxis::Angle => axis.iter().map(|&t| p.path_of_angle(t.clamp(-0.5 * PI, 0.5 * PI))).collect(),
+    };
+    let (inten, col) = far_columns(p, &edges);
+    let mut few = vec![];
+    if p.compare_few {
+        for n in [1.0, 2.0] {
+            if n != p.grooves() {
+                let q = GratingParams { width_mm: n * p.d_mm(), ..p.clone() };
+                let (v, _) = far_columns(&q, &edges);
+                few.push((n, v.iter().map(|&v| v as f32).collect()));
             }
         }
     }
     FarField {
-        x,
+        x: axis.windows(2).map(|w| 0.5 * (w[0] + w[1])).collect(),
         inten: inten.iter().map(|&v| v as f32).collect(),
         rgb: col.iter().map(|c| [c[0] as f32, c[1] as f32, c[2] as f32]).collect(),
+        few,
     }
 }
 
@@ -955,6 +1023,7 @@ pub fn calibrate(p: &GratingParams, rec: &Recording) -> Option<Calibration> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GratingPreset {
     HowItWorks,
+    Exercise11,
     Calibration,
     SodiumDoublet,
     SecondOrder,
@@ -967,8 +1036,9 @@ pub enum GratingPreset {
 }
 
 impl GratingPreset {
-    pub const ALL: [GratingPreset; 10] = [
+    pub const ALL: [GratingPreset; 11] = [
         GratingPreset::HowItWorks,
+        GratingPreset::Exercise11,
         GratingPreset::Calibration,
         GratingPreset::SodiumDoublet,
         GratingPreset::SecondOrder,
@@ -983,6 +1053,7 @@ impl GratingPreset {
     pub fn label(self) -> &'static str {
         match self {
             GratingPreset::HowItWorks => "Grating spectrometer: how it works",
+            GratingPreset::Exercise11 => "PS03 exercise 11: slit, double slit and grating",
             GratingPreset::Calibration => "Calibrating with reference lamps",
             GratingPreset::SodiumDoublet => "The sodium doublet: how many grooves?",
             GratingPreset::SecondOrder => "Second order: twice the resolution",
@@ -1007,6 +1078,31 @@ impl GratingPreset {
                  have known wavelengths: they calibrate the pixel scale (the fit is shown below the spectrum), and \
                  with it the source's lines are measured: the two yellow sodium lines, 589.0 and 589.6 nm. Turn the \
                  grating (drag it, or the angle slider) to move the spectrum across the camera."
+            }
+            GratingPreset::Exercise11 => {
+                p.sources = vec![Lamp::HeNe];
+                p.references = vec![];
+                // slits 5 µm wide, 15 µm apart: a grating of 66.7 lines/mm with strips a third of d wide
+                p.lines_per_mm = 1000.0 / 15.0;
+                p.groove = Groove::Strips;
+                p.fill = 1.0 / 3.0;
+                p.width_mm = 20.0 * 0.015;
+                p.set_theta_i(0.0);
+                p.far_field = true;
+                p.far_axis = FarAxis::Angle;
+                p.far_view_rad = (-0.2, 0.3);
+                p.compare_few = true;
+                "Problem set 3, exercise 11 b): HeNe light (633 nm) at normal incidence on N slits, each \
+                 5 µm wide and 15 µm apart (the exercise calls these d and D; here the spacing is d = 15 µm, as in \
+                 the grating equation). The grating is built from reflecting strips a third of the spacing wide, \
+                 which diffract exactly like the slits. Plotted against the angle, each normalised to its 0th \
+                 order: grey one slit, sinc²(kXd/2), with its zeros at sin θ = ±λ/5 µm = ±0.127; violet two slits; \
+                 colour N = 20. The orders sit at sin θ = mλ/15 µm, every 0.042 rad, and the third one is missing \
+                 because the single slit has a zero there. c) Set θ_i = 0.1 rad (5.73°, under GRATING): the \
+                 pattern moves with the light, the 0th order goes to θ_m = θ_i and the zeros of the single slit to \
+                 sin θ_m = sin θ_i ± λ/(5 µm), i.e. 0.228 and −0.027 rad, about 0.1 ± 0.13 rad. (The solution \
+                 writes −θs: it measures P on the other side of the axis. Here θ_i and θ_m are measured as in the \
+                 notes, so the light that goes straight on, or is reflected like a mirror, has θ_m = θ_i.)"
             }
             GratingPreset::Calibration => {
                 p.sources = vec![Lamp::Helium];
@@ -1272,6 +1368,40 @@ mod tests {
         let top = g.inten.iter().cloned().fold(0.0, f32::max);
         let e = p.efficiency(632.816, p.alpha(), (632.816 / (p.d_mm() * 1e6) - p.alpha().sin()).asin());
         assert!((top as f64 - e).abs() < 1e-3, "{top} {e}");
+    }
+
+    #[test]
+    fn exercise_11_numbers() {
+        let (p, _) = GratingPreset::Exercise11.setup();
+        assert_eq!(p.grooves(), 20.0);
+        assert!(p.theta_i().abs() < 1e-12);
+        let at = |p: &GratingParams, theta: f64| {
+            let mut q = p.clone();
+            q.far_axis = FarAxis::Angle;
+            q.far_view_rad = (theta - 1e-6, theta + 1e-6);
+            q.compare_few = true;
+            let f = far_field(&q, 16);
+            (f.inten[8] as f64, f.few[0].1[8] as f64)
+        };
+        let lam = 632.816e-6;
+        // 0th order normalised to 1, first order sinc²(π/3), third order missing (D = 3d)
+        assert!((at(&p, 0.0).0 - 1.0).abs() < 1e-4);
+        let first = (lam / 0.015f64).asin();
+        let s = (PI / 3.0).sin() / (PI / 3.0);
+        assert!((at(&p, first).0 - s * s).abs() < 2e-3, "{}", at(&p, first).0);
+        assert!(at(&p, (3.0 * lam / 0.015f64).asin()).0 < 1e-3);
+        // one slit: zero at sin θ = λ/d
+        assert!(at(&p, (lam / 0.005f64).asin()).1 < 1e-6);
+        // c) at θ_i = 0.1 rad the 0th order follows, the single-slit zeros move to 0.228 and −0.027 rad
+        let mut q = p.clone();
+        q.set_theta_i(0.1);
+        assert!((q.theta_i() - 0.1).abs() < 1e-12);
+        assert!((at(&q, 0.1).0 - 1.0).abs() < 1e-4);
+        for z in [(0.1f64.sin() + lam / 0.005).asin(), (0.1f64.sin() - lam / 0.005).asin()] {
+            assert!(at(&q, z).1 < 1e-6, "{z}");
+        }
+        assert!(((0.1f64.sin() + lam / 0.005).asin() - 0.228).abs() < 1e-3);
+        assert!(((0.1f64.sin() - lam / 0.005).asin() + 0.027).abs() < 1e-3);
     }
 
     #[test]

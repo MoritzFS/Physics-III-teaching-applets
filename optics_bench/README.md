@@ -346,7 +346,10 @@ build cavities and interferometers.
   λ/4, coupled cavities, a waveplate in a cavity (two polarisation modes),
   Michelson (λ/2 per fringe), Michelson with unequal arms (frequency
   dependence), Michelson with two lines (resolving them), Mach–Zehnder,
-  Sagnac, λ/2 plate and PBS, optical isolator.
+  Sagnac, λ/2 plate and PBS, PS03 exercise 13 (polariser and λ/4 plate in
+  both orders), optical isolator. Circular polarisation is named as in PS03:
+  (1, i)/√2 is left circular, turning counter-clockwise seen looking into the
+  beam (↺).
 
 The fields are Jones vectors (H in the plane of the table, V vertical). Each
 part maps the fields arriving on its four sides to the fields leaving them.
@@ -402,19 +405,23 @@ focuses every direction onto a line camera.
   to zoom, drag to move, double-click for the whole camera.
 * **Spectrum in all directions**: the intensity against the path difference
   between neighbouring grooves, d(sin θ_m − sin θ_i), so the orders of λ sit
-  at mλ, with N − 2 weak maxima between them. The green band is what the
-  camera sees.
+  at mλ, with N − 2 weak maxima between them; or against the angle θ_m. It can
+  show the same grating with one and two grooves for comparison, each
+  normalised to its 0th order as in PS03, exercise 11. The green band is what
+  the camera sees.
 * **Lamps**: mercury, neon, sodium, hydrogen (Balmer), helium, cadmium, HeNe
   and green lasers, a white lamp (2900 K), and a test pair of lines with any
   separation. Each can be a source or a reference. The wavelengths are the
   standard values in air; the relative strengths are rough, as they differ
   from lamp to lamp.
 * **Grating**: lines per mm, lit width W, blazed (sawtooth facets at the blaze
-  angle) or flat reflecting strips (any width), and the angle it is turned by.
+  angle) or flat reflecting strips (any width), and the angle it is turned by
+  (or the angle of incidence θ_i).
   **Spectrometer**: slit width, f₁ and f₂, the angle between the arms
   (0 = Littrow), the camera's pixels. **Calibration**: the degree of the fit.
 * **Examples** (Scene → Examples: grating spectrometer): how it works,
-  calibrating with reference lamps, the sodium doublet (how many grooves),
+  PS03 exercise 11 (one slit, two slits and 20 slits against the angle, and
+  oblique incidence), calibrating with reference lamps, the sodium doublet (how many grooves),
   second order, Rayleigh's criterion and the phasors, slit and pixels, the
   limit δλ/λ ≥ λ/2Nd, a few grooves (the N-slit pattern), white light and
   the blaze, ghost lines from overlapping orders.

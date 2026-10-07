@@ -8,7 +8,7 @@ use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Sense,
 
 use crate::dispersion_ui::{fmt_tick, readout, ticks};
 use crate::grating::{
-    calibrate, drop_side_lobes, far_field, find_peaks, record, Axis, Calibration, FarField, GratingParams, GratingPreset, Groove, Lamp, Recording, DEG,
+    calibrate, drop_side_lobes, far_field, find_peaks, record, Axis, Calibration, FarAxis, FarField, GratingParams, GratingPreset, Groove, Lamp, Recording, DEG,
 };
 use crate::interferometer_ui::{arrow_head, dashed, polyline, tag};
 use crate::worker::Worker;
@@ -45,6 +45,9 @@ fn record_key(p: &GratingParams) -> GratingParams {
     q.fit_degree = 0;
     if !q.far_field {
         q.far_view = (0.0, 0.0);
+        q.far_view_rad = (0.0, 0.0);
+        q.far_axis = FarAxis::Path;
+        q.compare_few = false;
     }
     q
 }
@@ -429,6 +432,7 @@ impl GratingUi {
             ui.strong("RESOLUTION");
             ui.weak(format!("at {lam:.1} nm, order {}", r.m));
         });
+        let r = crate::grating::Resolution { theta_i: if r.theta_i.abs() < 5e-7 { 0.0 } else { r.theta_i }, ..r };
         let text = if r.m == 0 {
             "Order 0 (the mirror reflection): all colours leave the same way; no spectrum. Turn the grating.".to_string()
         } else {
@@ -441,7 +445,7 @@ impl GratingUi {
                 "the pixels"
             };
             format!(
-                "lit grooves N = W/d = {:.0}    θ_i = {:.1}°, θ_m = {:.1}°\n\
+                "lit grooves N = W/d = {:.0}    θ_i = {:.1}° ({:.3} rad), θ_m = {:.1}°\n\
                  path difference across the grating Δ = Nd(sin θ_m − sin θ_i) = {} = {:.0} λ\n\
                  resolving power λ/δλ = mN = Δ/λ = {:.0}, so δλ = {}\n\
                  limit for any order and angle: Δ ≤ 2Nd, so λ/δλ ≤ 2W/λ = {:.0}\n\
@@ -449,6 +453,7 @@ impl GratingUi {
                  this setting is limited by {}",
                 r.n,
                 r.theta_i / DEG,
+                r.theta_i,
                 r.theta_m / DEG,
                 fmt_mm(r.path_mm.abs()),
                 r.path_mm.abs() * 1e6 / lam,
@@ -648,6 +653,13 @@ impl GratingUi {
                             .on_hover_text("as if the angles and focal lengths were known exactly");
                     });
             }
+            if self.params.far_field {
+                ui.label("against");
+                ui.selectable_value(&mut self.params.far_axis, FarAxis::Path, "path difference").on_hover_text("d(sin θ_m − sin θ_i): the orders at mλ");
+                ui.selectable_value(&mut self.params.far_axis, FarAxis::Angle, "angle θ_m");
+                ui.checkbox(&mut self.params.compare_few, "compare N = 1, 2").on_hover_text("the same grating with only one and two grooves lit");
+                ui.separator();
+            }
             ui.checkbox(&mut self.params.log, "log");
             if ui.small_button("whole range").on_hover_text("or double-click the plot").clicked() {
                 self.reset_zoom();
@@ -672,11 +684,24 @@ impl GratingUi {
     }
 
     fn reset_zoom(&mut self) {
-        if self.params.far_field {
-            let d = self.params.d_mm() * 1e6;
-            self.params.far_view = (-2.0 * d, 2.0 * d);
+        let p = &mut self.params;
+        if !p.far_field {
+            p.view = (0.0, 1.0);
+        } else if p.far_axis == FarAxis::Path {
+            let d = p.d_mm() * 1e6;
+            p.far_view = (-2.0 * d, 2.0 * d);
         } else {
-            self.params.view = (0.0, 1.0);
+            p.far_view_rad = (-1.5, 1.5);
+        }
+    }
+
+    /// the shown range of the active plot
+    fn current_range(&self) -> (f64, f64) {
+        let p = &self.params;
+        match (p.far_field, p.far_axis) {
+            (false, _) => p.view,
+            (true, FarAxis::Path) => p.far_view,
+            (true, FarAxis::Angle) => p.far_view_rad,
         }
     }
 
@@ -685,7 +710,7 @@ impl GratingUi {
         let (mut a, mut b) = range;
         if resp.double_clicked() {
             self.reset_zoom();
-            return if self.params.far_field { self.params.far_view } else { self.params.view };
+            return self.current_range();
         }
         if resp.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
@@ -974,8 +999,13 @@ impl GratingUi {
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 3.0, BG);
         let d = self.params.d_mm() * 1e6;
-        let fv = self.zoom_pan(ui, rect, resp, self.params.far_view, (-2.0 * d, 2.0 * d), 5.0);
-        self.params.far_view = fv;
+        let angle = self.params.far_axis == FarAxis::Angle;
+        if angle {
+            self.params.far_view_rad = self.zoom_pan(ui, rect, resp, self.params.far_view_rad, (-1.55, 1.55), 1e-4);
+        } else {
+            self.params.far_view = self.zoom_pan(ui, rect, resp, self.params.far_view, (-2.0 * d, 2.0 * d), 5.0);
+        }
+        let fv = self.current_range();
         let Some(f) = self.far.clone() else {
             painter.text(rect.center(), Align2::CENTER_CENTER, "computing…", FontId::proportional(13.0), LABEL);
             return;
@@ -984,7 +1014,7 @@ impl GratingUi {
         let (a, b) = (f.x.first().copied().unwrap_or(fv.0), f.x.last().copied().unwrap_or(fv.1));
         let span = (b - a).max(1e-9);
         let sx = |x: f64| plot.left() + ((x - a) / span) as f32 * plot.width();
-        let vmax = f.inten.iter().cloned().fold(0.0f32, f32::max).max(1e-30) as f64;
+        let vmax = f.inten.iter().chain(f.few.iter().flat_map(|(_, v)| v.iter())).cloned().fold(0.0f32, f32::max).max(1e-30) as f64;
         let log = self.params.log;
         let sy = |v: f64| {
             let t = if log { ((v.max(1e-300).log10() + 4.0 - vmax.log10()) / 4.0).clamp(0.0, 1.0) } else { v / (vmax * 1.08) };
@@ -998,17 +1028,18 @@ impl GratingUi {
             painter.line_segment([pos2(x, plot.top()), pos2(x, plot.bottom())], grid);
             painter.text(pos2(x, plot.bottom() + 3.0), Align2::CENTER_TOP, fmt_step(v, tick_step(&t)), font.clone(), LABEL);
         }
-        painter.text(
-            pos2(plot.center().x, rect.bottom() - 3.0),
-            Align2::CENTER_BOTTOM,
-            "path difference between neighbouring grooves d(sin θ_m − sin θ_i) (nm): order m of λ at mλ",
-            font.clone(),
-            LABEL,
-        );
-        // the part the camera sees
         let p = &self.params;
+        let xlabel = if angle {
+            let ti = p.theta_i() + 0.0;
+            let ti = if ti.abs() < 5e-7 { 0.0 } else { ti };
+            format!("angle θ_m from the grating normal (rad); the light arrives at θ_i = {ti:.3} rad ({:.2}°)", ti / DEG)
+        } else {
+            "path difference between neighbouring grooves d(sin θ_m − sin θ_i) (nm): order m of λ at mλ".to_string()
+        };
+        painter.text(pos2(plot.center().x, rect.bottom() - 3.0), Align2::CENTER_BOTTOM, xlabel, font.clone(), LABEL);
+        // the part the camera sees
         let half = 0.5 * p.camera_mm();
-        let cam = |x: f64| d * (p.alpha().sin() + p.beta_at(x).sin());
+        let cam = |x: f64| if angle { p.beta_at(x) } else { d * (p.alpha().sin() + p.beta_at(x).sin()) };
         let (c0, c1) = (cam(-half), cam(half));
         let cr = Rect::from_min_max(pos2(sx(c0.min(c1)), plot.top()), pos2(sx(c0.max(c1)), plot.bottom())).intersect(plot);
         if cr.width() > 0.0 {
@@ -1029,15 +1060,40 @@ impl GratingUi {
         }
         let ys: Vec<f64> = f.inten.iter().map(|&v| v as f64).collect();
         pp.add(Shape::line(polyline(&f.x, &ys, |x, y| pos2(sx(x), sy(y)), plot.width()), Stroke::new(1.2, Color32::from_gray(225))));
+        // the same grating with one and two grooves
+        let mut legend: Vec<(String, Color32)> = vec![];
+        for (n, v) in &f.few {
+            let col = if *n == 1.0 { Color32::from_gray(150) } else { Color32::from_rgb(190, 150, 255) };
+            let ys: Vec<f64> = v.iter().map(|&v| v as f64).collect();
+            pp.add(Shape::line(polyline(&f.x, &ys, |x, y| pos2(sx(x), sy(y)), plot.width()), Stroke::new(1.5, col)));
+            legend.push((if *n == 1.0 { "N = 1 (one groove or slit)".into() } else { format!("N = {n:.0}") }, col));
+        }
+        if !legend.is_empty() {
+            legend.push((format!("N = {:.0}", p.grooves()), Color32::from_gray(225)));
+        }
+        let mut ly = plot.top() + 40.0;
+        for (t, c) in legend {
+            let r = tag(&pp, pos2(plot.right() - 4.0, ly), Align2::RIGHT_TOP, &t, c, 10.0);
+            ly = r.bottom() + 2.0;
+        }
         // orders of the first line
         let lamps: Vec<Lamp> = p.sources.iter().chain(&p.references).copied().collect();
         if let Some(&(nm, _, _)) = p.lines(&lamps).first() {
-            let m0 = (a / nm).ceil() as i64;
-            let m1 = (b / nm).floor() as i64;
+            let (pa, pb) = p.far_range().1;
+            let m0 = (pa / nm).ceil() as i64;
+            let m1 = (pb / nm).floor() as i64;
             if m1 - m0 < 30 {
                 for m in m0..=m1 {
-                    let x = sx(m as f64 * nm);
-                    painter.text(pos2(x, plot.top() + 22.0), Align2::CENTER_TOP, format!("m = {m}"), font.clone(), LABEL);
+                    let pos = if angle {
+                        let sb = m as f64 * nm / d - p.alpha().sin();
+                        if sb.abs() > 1.0 {
+                            continue;
+                        }
+                        sb.asin()
+                    } else {
+                        m as f64 * nm
+                    };
+                    painter.text(pos2(sx(pos), plot.top() + 22.0), Align2::CENTER_TOP, format!("m = {m}"), font.clone(), LABEL);
                 }
             }
         }
@@ -1149,6 +1205,25 @@ impl GratingUi {
             ui.label("turned by");
             ui.horizontal(|ui| {
                 ui.add(egui::DragValue::new(&mut p.angle_deg).range(-80.0..=80.0).speed(0.05).max_decimals(3).suffix("°"));
+            });
+            ui.end_row();
+            ui.label("light arrives at θ_i");
+            ui.horizontal(|ui| {
+                let mut ti = p.theta_i();
+                if ti.abs() < 5e-9 {
+                    ti = 0.0;
+                }
+                if ui
+                    .add(egui::DragValue::new(&mut ti).range(-1.5..=1.5).speed(0.001).max_decimals(4).suffix(" rad"))
+                    .on_hover_text("angle of incidence from the grating normal (turns the grating)")
+                    .changed()
+                {
+                    p.set_theta_i(ti);
+                }
+                ui.weak(format!("= {:.2}°", ti / DEG));
+                if ui.small_button("0").on_hover_text("normal incidence").clicked() {
+                    p.set_theta_i(0.0);
+                }
             });
             ui.end_row();
         });

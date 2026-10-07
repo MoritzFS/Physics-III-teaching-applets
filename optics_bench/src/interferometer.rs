@@ -121,15 +121,17 @@ pub fn ellipse(v: &Jones) -> (f64, f64) {
     (angle.to_degrees(), ellip.to_degrees())
 }
 
-/// a short name for a polarisation state
+/// A short name for a polarisation state. Left and right as in PS03,
+/// exercise 13: (1, i)/√2 is left circular, turning counter-clockwise when
+/// one looks into the beam (↺).
 pub fn describe_polarisation(v: &Jones) -> String {
     let (a, e) = ellipse(v);
     if e.abs() > 44.0 {
-        return if e > 0.0 { "circular ↺".into() } else { "circular ↻".into() };
+        return if e > 0.0 { "left circular ↺".into() } else { "right circular ↻".into() };
     }
     let a = if a < -0.5 { a + 180.0 } else { a };
     if e.abs() >= 1.0 {
-        format!("elliptical, axis {a:.0}°, {}", if e > 0.0 { "↺" } else { "↻" })
+        format!("{} elliptical, axis {a:.0}°", if e > 0.0 { "left ↺" } else { "right ↻" })
     } else if a.abs() < 1.0 || (a - 180.0).abs() < 1.0 {
         "linear H".to_string()
     } else if (a - 90.0).abs() < 1.0 {
@@ -1480,6 +1482,7 @@ pub enum IfoPreset {
     MachZehnder,
     Sagnac,
     HalfWavePbs,
+    Exercise13,
     Isolator,
     Birefringent,
     Coupled,
@@ -1533,7 +1536,7 @@ impl Table {
 }
 
 impl IfoPreset {
-    pub const ALL: [IfoPreset; 15] = [
+    pub const ALL: [IfoPreset; 16] = [
         IfoPreset::FabryPerot,
         IfoPreset::HighFinesse,
         IfoPreset::SwitchOn,
@@ -1548,6 +1551,7 @@ impl IfoPreset {
         IfoPreset::MachZehnder,
         IfoPreset::Sagnac,
         IfoPreset::HalfWavePbs,
+        IfoPreset::Exercise13,
         IfoPreset::Isolator,
     ];
 
@@ -1567,6 +1571,7 @@ impl IfoPreset {
             IfoPreset::MachZehnder => "Mach–Zehnder: a phase shifter, two outputs",
             IfoPreset::Sagnac => "Sagnac: the dark port stays dark",
             IfoPreset::HalfWavePbs => "λ/2 plate and PBS: an adjustable beam splitter",
+            IfoPreset::Exercise13 => "PS03 exercise 13: polariser and λ/4 plate, both orders",
             IfoPreset::Isolator => "Optical isolator: Faraday rotator",
         }
     }
@@ -1802,6 +1807,27 @@ impl IfoPreset {
                  90°. At 22.5° the PBS is a 50:50 beam splitter. This is how the power in the arms of a setup is \
                  set in the lab. Replace the λ/2 plate by a polariser and you get Malus's law, cos²θ, but the light \
                  that does not pass is lost."
+            }
+            IfoPreset::Exercise13 => {
+                t.0.show_pol = true;
+                t.0.laser.pol_deg = 90.0;
+                t.laser(2, 8, Dir::E);
+                t.mirror(6, 8, SLASH, 0.5);
+                t.mirror(6, 3, SLASH, 1.0);
+                t.polarizer(10, 8, 45.0);
+                t.plate(14, 8, 0.25, 90.0);
+                t.detector(20, 8, "LP, then QWP");
+                t.plate(10, 3, 0.25, 90.0);
+                t.polarizer(14, 3, 45.0);
+                t.detector(20, 3, "QWP, then LP");
+                "Problem set 3, exercise 13 b): vertically polarised light (laser V) through a linear polariser \
+                 at 45° (M_LP) and a quarter-wave plate (M_QWP = e^{iπ/4} diag(1, −i): its fast axis is vertical), \
+                 and the other way round. The beam splitter sends half of the light each way (V stays V). Bottom \
+                 row: the polariser makes (1, 1)/√2, the plate turns it into (1, −i)/√2, right circular. Top row: \
+                 the plate first leaves V unchanged (V lies along its axis), and the polariser then gives linear \
+                 45°. Hover the beams for their polarisation; the circles show it looking into the beam. Turn the \
+                 plate's axis to 0°: the light becomes left circular, (1, i)/√2. At 45° (along the polariser) it \
+                 stays linear."
             }
             IfoPreset::Isolator => {
                 t.0.show_pol = true;
@@ -2042,6 +2068,26 @@ mod tests {
         let s = steady(&q);
         // 0° then 45° polariser: half passes, the mirror sends 30 % back, half of that passes the first
         assert!((back(&q, &s) - 0.5 * 0.3 * 0.5).abs() < 1e-9, "{}", back(&q, &s));
+    }
+
+    #[test]
+    fn exercise_13_polariser_and_quarter_wave_plate() {
+        let (p, _) = IfoPreset::Exercise13.setup();
+        let s = steady(&p);
+        let d = p.detectors();
+        // half of the laser goes each way, half of that passes the polariser
+        for &k in &d {
+            assert!((s.arrived[k] - 0.25).abs() < 1e-9);
+        }
+        // LP then QWP: right circular, (1, −i); QWP then LP: linear 45°
+        let lp_qwp = s.at_part[d[0]];
+        let qwp_lp = s.at_part[d[1]];
+        assert_eq!(describe_polarisation(&lp_qwp), "right circular ↻");
+        assert_eq!(describe_polarisation(&qwp_lp), "linear 45°");
+        // the convention of the exercise: (1, i)/√2 is left circular
+        assert_eq!(describe_polarisation(&polarisation(0.0, 45.0)), "left circular ↺");
+        let v = polarisation(0.0, 45.0);
+        assert!((v[1] / v[0] - I).norm() < 1e-12);
     }
 
     #[test]

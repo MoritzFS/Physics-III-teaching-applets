@@ -328,7 +328,7 @@ they require it only because the whole app does.
 - Line lists are standard air wavelengths; the strengths are rough.
 
 **Verified** (cloud, Linux)
-- `cargo test --release`: 63 tests pass, 27 of them new, covering the physics
+- `cargo test --release`: 65 tests pass, 29 of them new, covering the physics
   in the notes of both benches.
 - `cargo clippy` (native and wasm32): no warnings in the new files.
 - Screenshots of every new example from the desktop build under Xvfb with
