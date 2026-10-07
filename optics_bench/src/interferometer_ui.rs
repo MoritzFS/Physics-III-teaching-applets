@@ -10,7 +10,7 @@ use rustfft::num_complex::Complex64 as C64;
 use crate::dispersion_ui::{fmt_tick, readout, ticks};
 use crate::fourier::wavelength_rgb;
 use crate::interferometer::{
-    describe_polarisation, ellipse, fmt_percent, peaks, power, steady, sweep, Dir, IfoParams, IfoPreset, Jones, Kind,
+    describe_polarisation, ellipse, fmt_percent, fourier_spectrum, peaks, power, steady, sweep, Dir, FtSpectrum, IfoParams, IfoPreset, Jones, Kind,
     Part, Spectrum, Steady, SweepResult, SweepVar, TimeSim, BACK, BAR, C_LIGHT, DASH, HISTORY_MAX, SLASH,
 };
 use crate::worker::Worker;
@@ -171,6 +171,9 @@ pub struct IfoUi {
     animate: bool,
     animate_dir: f64,
     hover_text: Option<(Pos2, String)>,
+    /// counts the sweep results, to cache their Fourier transform
+    result_gen: u64,
+    fourier: Option<(u64, bool, Option<FtSpectrum>)>,
 }
 
 impl Default for IfoUi {
@@ -192,6 +195,8 @@ impl Default for IfoUi {
             animate: false,
             animate_dir: 1.0,
             hover_text: None,
+            result_gen: 0,
+            fourier: None,
         }
     }
 }
@@ -226,13 +231,25 @@ fn fmt_power(mw: f64) -> String {
     }
 }
 
+fn fmt_nm(nm: f64) -> String {
+    if nm >= 1.0 {
+        format!("{nm:.2} nm")
+    } else if nm >= 0.01 {
+        format!("{nm:.3} nm")
+    } else {
+        format!("{:.2} pm", nm * 1e3)
+    }
+}
+
 fn fmt_len(m: f64) -> String {
     if m >= 1.0 {
         format!("{m:.2} m")
     } else if m >= 0.01 {
         format!("{:.1} cm", m * 100.0)
-    } else {
+    } else if m >= 1e-3 {
         format!("{:.2} mm", m * 1000.0)
+    } else {
+        format!("{:.1} µm", m * 1e6)
     }
 }
 
@@ -410,6 +427,7 @@ impl IfoUi {
         worker.request(&sweep_key(&self.params));
         if let Some(r) = worker.poll() {
             self.result = Some(r);
+            self.result_gen += 1;
         }
         if worker.busy() {
             ctx.request_repaint();
@@ -888,9 +906,24 @@ impl IfoUi {
             },
         };
         let cavity = self.steady().cavity.clone();
+        // a scanned mirror: the trace can be Fourier transformed into a spectrum
+        let kappa = match self.params.sweep.var {
+            SweepVar::Part(id) => self.params.by_id(id).filter(|p| p.kind == Kind::Mirror).map(|p| p.path_per_shift()),
+            SweepVar::Frequency => None,
+        };
         ui.horizontal(|ui| {
             ui.strong("SWEEP");
-            ui.weak(format!("detector power vs {what}"));
+            if kappa.is_some() {
+                let sw = &mut self.params.sweep;
+                ui.selectable_value(&mut sw.fourier, false, "interferogram").on_hover_text(format!("detector power vs {what}"));
+                ui.selectable_value(&mut sw.fourier, true, "spectrum")
+                    .on_hover_text("the Fourier transform of D1's trace: a Fourier-transform spectrometer");
+                if sw.fourier {
+                    ui.checkbox(&mut sw.hann, "Hann window").on_hover_text("apodisation: no side lobes, but wider peaks");
+                }
+            } else {
+                ui.weak(format!("detector power vs {what}"));
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(r) = &self.result {
                     ui.weak(format!("{} points, {:.0} ms", r.xs.len(), r.millis));
@@ -913,6 +946,10 @@ impl IfoUi {
             painter.text(rect.center(), Align2::CENTER_CENTER, "computing…", FontId::proportional(13.0), LABEL);
             return;
         };
+        if let Some(kappa) = kappa.filter(|_| self.params.sweep.fourier) {
+            self.fourier_ui(ui, rect, &r, kappa, readout_h);
+            return;
+        }
         let span = (b - a).abs();
         let fsr_mhz = cavity.as_ref().map(|c| c.fsr_hz * 1e-6);
         let in_fsr = self.params.sweep.in_fsr && self.params.sweep.var == SweepVar::Frequency && fsr_mhz.is_some();
@@ -1053,6 +1090,86 @@ impl IfoUi {
         }
         let (lr, _) = ui.allocate_exact_size(vec2(avail.x, readout_h), Sense::hover());
         ui.painter_at(lr).text(lr.left_top() + vec2(2.0, 4.0), Align2::LEFT_TOP, text, FontId::proportional(11.0), LABEL);
+    }
+
+    /// the spectrum from the Fourier transform of D1's trace during a mirror scan
+    fn fourier_ui(&mut self, ui: &mut egui::Ui, rect: Rect, r: &SweepResult, kappa: f64, readout_h: f32) {
+        let hann = self.params.sweep.hann;
+        if self.fourier.as_ref().is_none_or(|(g, h, _)| *g != self.result_gen || *h != hann) {
+            let ft = r.traces.first().filter(|_| r.traces.len() > 1).and_then(|ys| fourier_spectrum(&r.xs, ys, kappa, hann));
+            self.fourier = Some((self.result_gen, hann, ft));
+        }
+        let painter = ui.painter_at(rect);
+        let Some((_, _, Some(ft))) = &self.fourier else {
+            painter.rect_filled(rect, 3.0, BG);
+            painter.text(rect.center(), Align2::CENTER_CENTER, "Put a detector (D1) on the table and scan a mirror.", FontId::proportional(12.0), LABEL);
+            return;
+        };
+        let l = &self.params.laser;
+        let lam0 = l.wavelength_nm;
+        let nu0 = l.nu0() + l.detuning_mhz * 1e6;
+        let lines: Vec<f64> = l.lines().iter().map(|(off, _)| C_LIGHT / (nu0 + off) * 1e9).collect();
+        let spread = lines.iter().map(|x| (x - lam0).abs()).fold(0.0f64, f64::max);
+        let res = lam0 * lam0 / ft.path_nm.max(1e-9);
+        let half = (2.5 * spread).max(10.0 * res).max(0.05).min(lam0 / 3.0);
+        let (x0, x1) = (lam0 - half, lam0 + half);
+        // the bins in the window, in order of increasing wavelength
+        let mut pts: Vec<(f64, f64)> = ft
+            .sigma
+            .iter()
+            .zip(&ft.mag)
+            .filter(|(s, _)| **s > 0.0)
+            .map(|(s, m)| (1.0 / s, *m))
+            .filter(|(x, _)| (x0..=x1).contains(x))
+            .collect();
+        pts.reverse();
+        let ymax = pts.iter().map(|q| q.1).fold(0.0f64, f64::max).max(1e-12);
+        let plot = axes(&painter, rect, (x0, x1), (0.0, 1.08), "wavelength (nm)", "relative", false);
+        let pp = ui.painter_at(plot.expand(1.0));
+        let sx = |x: f64| plot.left() + ((x - x0) / (x1 - x0)) as f32 * plot.width();
+        let sy = |y: f64| plot.bottom() - (y / 1.08) as f32 * plot.height();
+        let xs: Vec<f64> = pts.iter().map(|q| q.0).collect();
+        let ys: Vec<f64> = pts.iter().map(|q| q.1 / ymax).collect();
+        pp.add(Shape::line(polyline(&xs, &ys, |x, y| pos2(sx(x), sy(y)), plot.width()), Stroke::new(1.5, TRACE[0])));
+        // the lines of the source
+        let green = Color32::from_rgb(120, 200, 140);
+        for &x in lines.iter().take(8) {
+            if (x0..=x1).contains(&x) {
+                pp.line_segment([pos2(sx(x), plot.bottom()), pos2(sx(x), plot.bottom() - 8.0)], Stroke::new(1.5, green));
+            }
+        }
+        // the resolution 1/Δ as a bar
+        let w = (sx(lam0 + 0.5 * res) - sx(lam0 - 0.5 * res)).max(2.0);
+        let y = plot.top() + 16.0;
+        let c = sx(lam0);
+        pp.line_segment([pos2(c - 0.5 * w, y), pos2(c + 0.5 * w, y)], Stroke::new(2.0, PICK));
+        tag(&pp, pos2(c + 0.5 * w + 6.0, y), Align2::LEFT_CENTER, &format!("resolution λ²/Δ = {}", fmt_nm(res)), PICK, 10.0);
+        tag(&pp, plot.left_top() + vec2(4.0, 4.0), Align2::LEFT_TOP, "green: the lines of the source", green, 10.0);
+        // the peaks found
+        let mut found: Vec<f64> = (1..pts.len().saturating_sub(1))
+            .filter(|&k| pts[k].1 > 0.3 * ymax && pts[k].1 > pts[k - 1].1 && pts[k].1 >= pts[k + 1].1)
+            .map(|k| pts[k].0)
+            .collect();
+        found.truncate(6);
+        let path = ft.path_nm * 1e-9;
+        let mut text = format!(
+            "Mirror travel {} changes the path by up to Δ = {}. Resolution: δσ = 1/Δ = {:.3} /cm, δν = c/Δ = {}, δλ = λ²/Δ = {}.",
+            fmt_len(path / kappa),
+            fmt_len(path),
+            1e-2 / path,
+            fmt_freq(C_LIGHT / path),
+            fmt_nm(res)
+        );
+        if !found.is_empty() {
+            let list: Vec<String> = found.iter().map(|x| format!("{x:.3}")).collect();
+            text += &format!("\nPeaks at {} nm.", list.join(", "));
+        }
+        if !hann {
+            text += " Small side peaks come from the abrupt end of the scan (try the Hann window).";
+        }
+        let (lr, _) = ui.allocate_exact_size(vec2(rect.width(), readout_h), Sense::hover());
+        let galley = ui.painter().layout(text, FontId::proportional(11.0), LABEL, lr.width() - 4.0);
+        ui.painter_at(lr).galley(lr.left_top() + vec2(2.0, 4.0), galley, LABEL);
     }
 
     // ------------------------------------------------------------ switch-on

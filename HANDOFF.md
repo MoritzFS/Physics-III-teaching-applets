@@ -328,7 +328,7 @@ they require it only because the whole app does.
 - Line lists are standard air wavelengths; the strengths are rough.
 
 **Verified** (cloud, Linux)
-- `cargo test --release`: 65 tests pass, 29 of them new, covering the physics
+- `cargo test --release`: 68 tests pass, 32 of them new, covering the physics
   in the notes of both benches.
 - `cargo clippy` (native and wasm32): no warnings in the new files.
 - Screenshots of every new example from the desktop build under Xvfb with
@@ -344,12 +344,22 @@ they require it only because the whole app does.
   placing, dragging and turning parts; dragging the frequency line and the
   grating; zooming the spectrum.
 
+**Added afterwards** (the follow-ups suggested above)
+- Fourier-transform spectrometer: a mirror scan can be shown as the FFT of
+  D1's trace. The trace is resampled on an even grid, zero-padded 8× (at most
+  2²⁰ points) and optionally Hann-windowed. Mirror scans keep at least 4
+  points per fringe whatever the time budget (at most 65 536), so a 1 mm
+  scan at 589 nm takes about 0.15 s on the desktop thread and blocks the
+  browser for a few tenths of a second once.
+- Examples: the sodium doublet by Fourier transform, broad light (coherence
+  length), and a scanning Fabry–Pérot resolving two laser modes. The
+  broad-band spectrum is now 61 lines.
+- Tests: the FT separates the D lines with 1 mm of travel, but not with
+  0.1 mm. The coherence contrast drops from > 0.95 to < 0.05 at 10 µm. The
+  scanning FP's mode spacing (λ/6) and peak width (λ/2F) are checked.
+
 **Possible follow-ups**
-- A Fourier-transform spectrometer view: a Michelson scanned over millimetres
-  and the FFT of its interferogram. This would tie the two benches together
-  (resolution = 1/largest path difference).
-- An example using the "broad band" laser spectrum: coherence length and
-  white-light fringes.
-- A Fabry–Pérot etalon as a spectrometer, next to the grating.
 - Transverse modes and Gaussian beams are not modelled. Every cavity is
   perfectly aligned and mode-matched.
+- A fixed Fabry–Pérot etalon with its rings on a camera, next to the grating
+  spectrometer.

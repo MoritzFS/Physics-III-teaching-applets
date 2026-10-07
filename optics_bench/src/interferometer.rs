@@ -345,6 +345,12 @@ impl Part {
         (1.0 - self.reflect - self.loss).max(0.0)
     }
 
+    /// how much the path of the reflected beam changes per unit of mirror shift:
+    /// 2 at normal incidence, √2 at 45°
+    pub fn path_per_shift(&self) -> f64 {
+        if self.turn.is_multiple_of(2) { 2.0 } else { std::f64::consts::SQRT_2 }
+    }
+
     /// what the part does to light that arrives travelling in `d`; light that
     /// is not sent on is absorbed
     pub fn scatter(&self, d: Dir) -> Vec<Out> {
@@ -558,7 +564,8 @@ impl Laser {
                 vec![(-h, 0.5), (h, 0.5)]
             }
             Spectrum::Broad => {
-                let n = 41;
+                // a comb of lines under a Gaussian: far from equal paths (c/spacing) its fringes come back
+                let n = 61;
                 let sigma = self.width_ghz * 1e9 / 2.3548;
                 let w: Vec<(f64, f64)> = (0..n)
                     .map(|i| {
@@ -595,11 +602,25 @@ pub struct Sweep {
     /// frequency axis in units of the free spectral range
     pub in_fsr: bool,
     pub log: bool,
+    /// a mirror scan: show the Fourier transform of D1's trace (the spectrum)
+    pub fourier: bool,
+    /// … with a Hann window (apodisation)
+    pub hann: bool,
 }
 
 impl Default for Sweep {
     fn default() -> Self {
-        Sweep { var: SweepVar::Frequency, span_mhz: 3000.0, from: 0.0, to: 1000.0, show_back: true, in_fsr: false, log: false }
+        Sweep {
+            var: SweepVar::Frequency,
+            span_mhz: 3000.0,
+            from: 0.0,
+            to: 1000.0,
+            show_back: true,
+            in_fsr: false,
+            log: false,
+            fourier: false,
+            hann: false,
+        }
     }
 }
 
@@ -1212,13 +1233,16 @@ pub fn sweep(p: &IfoParams, budget_ms: f64) -> SweepResult {
     if sys.net.laser.is_none() || (b - a).abs() < 1e-12 {
         return SweepResult { xs: vec![], traces: vec![vec![]; nt], names, millis: 0.0 };
     }
-    // enough points for the fringes of a moved mirror (λ/2 per fringe), within a cost budget
+    // enough points for the fringes of a moved mirror: 12 per fringe, and never fewer than 4
+    // (a Fourier transform of the trace needs them), within a time budget
     let mut n0 = 1601usize;
+    let mut least = 201usize;
     if let (SweepVar::Part(_), Some(i)) = (p.sweep.var, swept)
         && sys.net.parts[i].kind == Kind::Mirror
     {
-        let fringes = (b - a).abs() / (0.5 * p.laser.wavelength_nm);
+        let fringes = (b - a).abs() * sys.net.parts[i].path_per_shift() / p.laser.wavelength_nm;
         n0 = n0.max((fringes * 12.0) as usize);
+        least = least.max((fringes * 4.0) as usize);
     }
     // time a few points to see how many fit into the time budget
     let probe = t0.elapsed().as_secs_f64();
@@ -1226,7 +1250,7 @@ pub fn sweep(p: &IfoParams, budget_ms: f64) -> SweepResult {
         sweep_point(&mut sys, p, swept, a + (b - a) * k as f64 / 7.0, &mut vec![0.0; nt]);
     }
     let per_point = ((t0.elapsed().as_secs_f64() - probe) / 8.0).max(1e-7);
-    let max_points = ((budget_ms * 1e-3 / per_point) as usize).clamp(201, 60_000);
+    let max_points = ((budget_ms * 1e-3 / per_point) as usize).max(least).clamp(201, 65_536);
     n0 = n0.min(max_points);
     let mut pts: Vec<(f64, Vec<f64>)> = Vec::with_capacity(n0);
     let mut buf = vec![0.0; nt];
@@ -1319,6 +1343,62 @@ pub fn peaks(xs: &[f64], ys: &[f64], floor: f64) -> Vec<(f64, f64, f64)> {
         }
     }
     out
+}
+
+/// The spectrum hidden in an interferogram: the Fourier transform of a
+/// detector trace recorded while a mirror moves. A line of wavenumber σ = 1/λ
+/// makes fringes cos(2πσκx) in the mirror position x, where κ is the change
+/// of path per unit of travel (2 at normal incidence).
+#[derive(Clone, Debug)]
+pub struct FtSpectrum {
+    /// wavenumber (1/nm) and |FT|, normalised to 1 at its highest point
+    pub sigma: Vec<f64>,
+    pub mag: Vec<f64>,
+    /// the largest path difference the scan covers (nm): the resolution is δσ = 1/Δ
+    pub path_nm: f64,
+}
+
+/// `xs` are mirror positions (nm, increasing), `ys` the detector powers.
+pub fn fourier_spectrum(xs: &[f64], ys: &[f64], kappa: f64, hann: bool) -> Option<FtSpectrum> {
+    let n = xs.len().min(ys.len());
+    if n < 16 || xs[n - 1] <= xs[0] {
+        return None;
+    }
+    // resample on an even grid (the sweep adds points around sharp peaks)
+    let m = n.next_power_of_two().min(1 << 17);
+    let (x0, x1) = (xs[0], xs[n - 1]);
+    let dx = (x1 - x0) / (m - 1) as f64;
+    let mut j = 0;
+    let mut samples: Vec<f64> = (0..m)
+        .map(|k| {
+            let x = x0 + k as f64 * dx;
+            while j + 2 < n && xs[j + 1] < x {
+                j += 1;
+            }
+            let t = ((x - xs[j]) / (xs[j + 1] - xs[j]).max(1e-30)).clamp(0.0, 1.0);
+            ys[j] * (1.0 - t) + ys[j + 1] * t
+        })
+        .collect();
+    let mean = samples.iter().sum::<f64>() / m as f64;
+    for (k, v) in samples.iter_mut().enumerate() {
+        *v -= mean;
+        if hann {
+            *v *= (std::f64::consts::PI * k as f64 / (m - 1) as f64).sin().powi(2);
+        }
+    }
+    // zero padding draws the line shapes smoothly (it adds no resolution)
+    let big = (8 * m).min(1 << 20);
+    let mut data: Vec<C64> = samples.iter().map(|&v| C64::new(v, 0.0)).collect();
+    data.resize(big, C64::new(0.0, 0.0));
+    rustfft::FftPlanner::<f64>::new().plan_fft_forward(big).process(&mut data);
+    let half = big / 2;
+    let mag: Vec<f64> = data[..half].iter().map(|c| c.norm()).collect();
+    let max = mag.iter().cloned().fold(0.0f64, f64::max).max(1e-300);
+    Some(FtSpectrum {
+        sigma: (0..half).map(|k| k as f64 / (big as f64 * dx * kappa)).collect(),
+        mag: mag.iter().map(|v| v / max).collect(),
+        path_nm: (x1 - x0) * kappa,
+    })
 }
 
 // ---------------------------------------------------------------- switch-on in time
@@ -1479,6 +1559,9 @@ pub enum IfoPreset {
     Michelson,
     MichelsonFrequency,
     TwoLines,
+    FourierSodium,
+    WhiteLight,
+    ScanningFp,
     MachZehnder,
     Sagnac,
     HalfWavePbs,
@@ -1536,7 +1619,7 @@ impl Table {
 }
 
 impl IfoPreset {
-    pub const ALL: [IfoPreset; 16] = [
+    pub const ALL: [IfoPreset; 19] = [
         IfoPreset::FabryPerot,
         IfoPreset::HighFinesse,
         IfoPreset::SwitchOn,
@@ -1548,6 +1631,9 @@ impl IfoPreset {
         IfoPreset::Michelson,
         IfoPreset::MichelsonFrequency,
         IfoPreset::TwoLines,
+        IfoPreset::FourierSodium,
+        IfoPreset::WhiteLight,
+        IfoPreset::ScanningFp,
         IfoPreset::MachZehnder,
         IfoPreset::Sagnac,
         IfoPreset::HalfWavePbs,
@@ -1568,6 +1654,9 @@ impl IfoPreset {
             IfoPreset::Michelson => "Michelson interferometer: λ/2 per fringe",
             IfoPreset::MichelsonFrequency => "Michelson with unequal arms: a frequency ruler",
             IfoPreset::TwoLines => "Michelson with two lines: resolving them",
+            IfoPreset::FourierSodium => "Fourier-transform spectrometer: the sodium doublet",
+            IfoPreset::WhiteLight => "Broad light: coherence length and white-light fringes",
+            IfoPreset::ScanningFp => "Scanning Fabry–Pérot: the modes of a laser",
             IfoPreset::MachZehnder => "Mach–Zehnder: a phase shifter, two outputs",
             IfoPreset::Sagnac => "Sagnac: the dark port stays dark",
             IfoPreset::HalfWavePbs => "λ/2 plate and PBS: an adjustable beam splitter",
@@ -1757,6 +1846,71 @@ impl IfoPreset {
                  every time Δ grows by c/δν = 40 cm: to tell two lines δν apart, the path difference must reach \
                  about c/δν. The resolution is the inverse of the largest path difference, just as for a grating \
                  (Nd) or a Fabry–Pérot."
+            }
+            IfoPreset::FourierSodium | IfoPreset::WhiteLight => {
+                t.laser(2, 8, Dir::E);
+                let bs = t.mirror(10, 8, SLASH, 0.5);
+                t.name(bs, "BS");
+                let m1 = t.mirror(18, 8, BAR, 1.0);
+                t.name(m1, "M1");
+                let m2 = t.mirror(10, 0, DASH, 1.0);
+                t.name(m2, "M2");
+                t.detector(10, 14, "output");
+                t.0.sweep.fourier = true;
+                if self == IfoPreset::FourierSodium {
+                    // the sodium D lines, 588.995 and 589.592 nm
+                    t.0.laser.wavelength_nm = 589.2935;
+                    t.0.laser.spectrum = Spectrum::Two;
+                    t.0.laser.line_sep_ghz = C_LIGHT * 0.597e-9 / (589.2935e-9f64).powi(2) * 1e-9;
+                    t.sweep_part(m1, 0.0, 1.0e6);
+                    "A Michelson used as a spectrometer. The source has two lines of equal strength 0.597 nm \
+                     apart, like the sodium D lines (in a real lamp D2 is about twice as strong). M1 is moved from \
+                     equal arms out to 1 mm, so the path difference grows to Δ = 2 mm. Each line makes its own \
+                     fringes; where they are out of step the contrast vanishes, every λ²/(2δλ) = 0.29 mm of travel \
+                     (switch to 'interferogram' to see the beats). The Fourier transform of the recorded trace is the \
+                     spectrum: two peaks. Its resolution is set by the largest path difference only: \
+                     δσ = 1/Δ, i.e. δλ = λ²/Δ = 0.17 nm. Scan only to 0.1 mm (δλ = 1.7 nm) and the two lines merge \
+                     into one peak; from about 0.2 mm (δλ = 0.87 nm) they begin to separate. It is the same rule as \
+                     for the grating, whose largest path difference is Nd(sin θ_m − sin θ_i). \
+                     The peaks have side lobes because the scan stops abruptly; the Hann window (apodisation) \
+                     removes them at the price of wider peaks."
+                } else {
+                    // an LED: 30 nm wide around 550 nm
+                    t.0.laser.wavelength_nm = 550.0;
+                    t.0.laser.spectrum = Spectrum::Broad;
+                    t.0.laser.width_ghz = 30_000.0;
+                    t.0.sweep.fourier = false;
+                    t.sweep_part(m1, -15_000.0, 15_000.0);
+                    "Light with a broad spectrum: an LED, about 30 nm wide (30 THz) around 550 nm. Each \
+                     frequency makes fringes with its own period; they are all bright together only near equal \
+                     arms. So fringes appear only within the coherence length l_c ≈ c/Δν = λ²/Δλ ≈ 10 µm of path \
+                     difference (5 µm of mirror travel) around zero. White light (300 nm wide) gives fringes over \
+                     about 1 µm: that is how one finds equal arms exactly, and how optical coherence tomography \
+                     locates reflecting layers in the eye. The envelope of the fringes is the Fourier transform of \
+                     the spectrum; switch to 'spectrum' to get the spectrum back from it. (The band is modelled \
+                     as 61 lines under a Gaussian; such a comb of lines makes the fringes come back at 118 µm of \
+                     travel, which a true continuum does not.)"
+                }
+            }
+            IfoPreset::ScanningFp => {
+                t.laser(2, 8, Dir::E);
+                let m = t.mirror(9, 8, BAR, 0.97);
+                t.name(m, "M1");
+                let m2 = t.mirror(13, 8, BAR, 0.97);
+                t.name(m2, "M2");
+                t.detector(19, 8, "transmitted");
+                t.0.laser.spectrum = Spectrum::Two;
+                t.0.laser.line_sep_ghz = 0.5;
+                t.sweep_part(m2, -200.0, 200.0);
+                "A short Fabry–Pérot (4 squares = 10 cm, FSR = 1.5 GHz, finesse ≈ 100) analyses a laser that runs \
+                 on two modes 500 MHz apart, as a HeNe laser about 30 cm long does. Moving M2 by λ/2 = 316 nm tunes \
+                 the resonances through one FSR, so each mode shows up as a peak, and the distance of the peaks in \
+                 units of λ/2 is their frequency difference in units of the FSR: 105 nm ↔ 500 MHz. Lines more than \
+                 one FSR apart would land on top of each other, like overlapping orders of a grating. The peaks \
+                 are FSR/F ≈ 15 MHz wide, so the resolving power is ν/δν = (2L/λ)·F, the order times the finesse: \
+                 the finesse takes the place of the number of grooves N in mN. On resonance the light makes about \
+                 F/2π round trips, so the paths that interfere differ by up to about 2L·F/π. Lower R to 40 % \
+                 (F ≈ 3.4) and the two peaks merge."
             }
             IfoPreset::MachZehnder => {
                 t.laser(2, 8, Dir::E);
@@ -2088,6 +2242,61 @@ mod tests {
         assert_eq!(describe_polarisation(&polarisation(0.0, 45.0)), "left circular ↺");
         let v = polarisation(0.0, 45.0);
         assert!((v[1] / v[0] - I).norm() < 1e-12);
+    }
+
+    #[test]
+    fn fourier_transform_resolves_the_sodium_doublet() {
+        let (p, _) = IfoPreset::FourierSodium.setup();
+        let r = sweep(&p, 400.0);
+        let kappa = 2.0;
+        let ft = fourier_spectrum(&r.xs, &r.traces[0], kappa, false).unwrap();
+        assert!((ft.path_nm - 2.0e6).abs() < 1.0);
+        // the two strongest peaks are the two lines
+        let lam: Vec<f64> = (1..ft.mag.len() - 1)
+            .filter(|&k| ft.mag[k] > 0.5 && ft.mag[k] > ft.mag[k - 1] && ft.mag[k] >= ft.mag[k + 1])
+            .map(|k| 1.0 / ft.sigma[k])
+            .collect();
+        assert_eq!(lam.len(), 2, "{lam:?}");
+        for (got, want) in lam.iter().rev().zip([588.995, 589.592]) {
+            assert!((got - want).abs() < 0.02, "{got} vs {want}");
+        }
+        // a scan to 0.1 mm cannot separate them: δλ = λ²/Δ = 1.7 nm
+        let mut q = p.clone();
+        q.sweep.to = 0.1e6;
+        let r = sweep(&q, 400.0);
+        let ft = fourier_spectrum(&r.xs, &r.traces[0], kappa, false).unwrap();
+        let n = (1..ft.mag.len() - 1).filter(|&k| ft.mag[k] > 0.5 && ft.mag[k] > ft.mag[k - 1] && ft.mag[k] >= ft.mag[k + 1]).count();
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn broad_light_has_short_coherence() {
+        let (p, _) = IfoPreset::WhiteLight.setup();
+        let r = sweep(&p, 400.0);
+        let ys = &r.traces[0];
+        // contrast of the fringes near zero and 10 µm of mirror travel away (20 µm path difference)
+        let contrast = |c: f64| {
+            let w: Vec<f64> = r.xs.iter().zip(ys).filter(|(x, _)| (**x - c).abs() < 400.0).map(|(_, y)| *y).collect();
+            let (lo, hi) = w.iter().fold((f64::MAX, f64::MIN), |(a, b), &v| (a.min(v), b.max(v)));
+            (hi - lo) / (hi + lo)
+        };
+        assert!(contrast(0.0) > 0.95, "{}", contrast(0.0));
+        assert!(contrast(10_000.0) < 0.05, "{}", contrast(10_000.0));
+    }
+
+    #[test]
+    fn scanning_fabry_perot_separates_the_modes() {
+        let (p, _) = IfoPreset::ScanningFp.setup();
+        let r = sweep(&p, 400.0);
+        let pk = peaks(&r.xs, &r.traces[0], 1e-9);
+        // the modes 500 MHz apart: a third of an FSR, i.e. λ/6 of mirror travel
+        let gaps: Vec<f64> = pk.windows(2).map(|w| w[1].0 - w[0].0).collect();
+        let third = p.laser.wavelength_nm / 6.0;
+        assert!(gaps.iter().any(|g| (g - third).abs() < 1.0), "{gaps:?}");
+        // each peak is about FSR/F wide (in travel: λ/2/F)
+        let f = std::f64::consts::PI * 0.97f64.sqrt() / 0.03;
+        let w = 0.5 * p.laser.wavelength_nm / f;
+        assert!(pk.iter().all(|q| (q.2 / w - 1.0).abs() < 0.05), "{pk:?} {w}");
     }
 
     #[test]

@@ -1192,7 +1192,8 @@ impl GratingPreset {
                  with θ_i and θ_m already at about ±50°. The third order of 589 nm does not exist at all with this \
                  grating (try the angle): it would need sin θ_m − sin θ_i > 2. The only way to resolve finer is a \
                  longer path difference: a wider grating, or an interferometer with long arms (Michelson) or many \
-                 round trips (Fabry–Pérot)."
+                 round trips (Fabry–Pérot). The interferometer bench has both: 'Fourier-transform spectrometer' \
+                 and 'Scanning Fabry–Pérot'."
             }
             GratingPreset::FewGrooves => {
                 p.sources = vec![Lamp::HeNe];

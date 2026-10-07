@@ -323,6 +323,12 @@ build cavities and interferometers.
   both ways are drawn side by side. Hover a beam for its power and
   polarisation. The circles show the polarisation (looking into the beam,
   H = in the plane of the table) at the laser and wherever it has changed.
+* **Spectrum** (when a mirror is scanned): the Fourier transform of D1's
+  trace, which turns the Michelson into a Fourier-transform spectrometer. The
+  readout gives the largest path difference Δ of the scan and the resolution
+  δσ = 1/Δ (δλ = λ²/Δ); the green ticks are the true lines of the source. The
+  Hann window (apodisation) removes the side lobes of the abruptly ended scan
+  at the price of wider peaks.
 * **Sweep**: the detector powers, and the light coming back into the laser, as
   the laser frequency is swept, or as one part's setting is scanned (a
   mirror's position, a phase, a waveplate or polariser angle, a Faraday
@@ -339,13 +345,19 @@ build cavities and interferometers.
   the field at D1 in the complex plane: a chain of phasors, one per round trip.
 * **Laser**: wavelength (it sets the colour and the scale of mirror shifts),
   power, detuning Δν, polarisation, and the spectrum: one line, two lines or
-  a broad band. Different lines do not interfere; their powers add.
+  a broad band. Different lines do not interfere; their powers add. The broad
+  band is 61 lines under a Gaussian, a comb, so far from equal paths (at a
+  path difference of c over the line spacing) its fringes come back, which a
+  true continuum does not do.
 * **Examples** (Scene → Examples: interferometers): Fabry–Pérot resonances and
   FSR, better mirrors (finesse and build-up), switch-on, unequal mirrors
   (impedance matching), ring cavity, measuring the reflection with PBS and
   λ/4, coupled cavities, a waveplate in a cavity (two polarisation modes),
   Michelson (λ/2 per fringe), Michelson with unequal arms (frequency
-  dependence), Michelson with two lines (resolving them), Mach–Zehnder,
+  dependence), Michelson with two lines (resolving them), a Fourier-transform
+  spectrometer (the sodium doublet), broad light (coherence length and
+  white-light fringes), a scanning Fabry–Pérot (the modes of a laser),
+  Mach–Zehnder,
   Sagnac, λ/2 plate and PBS, PS03 exercise 13 (polariser and λ/4 plate in
   both orders), optical isolator. Circular polarisation is named as in PS03:
   (1, i)/√2 is left circular, turning counter-clockwise seen looking into the
@@ -365,8 +377,10 @@ switch-on uses the main line only and treats mirror shifts as phases. Unit
 tests check the Airy transmission, FSR and finesse, the build-up T/(1 − R)²,
 energy conservation, the complementary outputs of the Michelson and
 Mach–Zehnder, the dark port of the Sagnac, PBS + λ/4, the isolator, the
-splitting of the polarisation modes, and that the switch-on settles to the
-steady state.
+splitting of the polarisation modes, that the switch-on settles to the
+steady state, that the Fourier transform of a 1 mm scan separates the sodium
+lines (and of a 0.1 mm scan does not), the coherence length of broad light,
+and the mode spacing and peak width of the scanning Fabry–Pérot.
 
 ## Gratings
 
