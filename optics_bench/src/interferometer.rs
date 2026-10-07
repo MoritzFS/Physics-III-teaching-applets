@@ -1599,8 +1599,8 @@ impl IfoPreset {
                     }
                     IfoPreset::HighFinesse => {
                         "The same cavity with R = 99 %. The peaks are still c/2L apart, but 10 times narrower: the \
-                         finesse F = FSR/linewidth = π√R/(1 − R) ≈ 310 counts the round trips the light makes before \
-                         it is lost (about F/2π). On resonance the field inside builds up to T/(1 − R)² = 100 times the \
+                         finesse is F = FSR/linewidth = π√R/(1 − R) ≈ 310, and the light makes about F/2π ≈ 50 round \
+                         trips before it is lost. On resonance the field inside builds up to T/(1 − R)² = 100 times the \
                          laser power, and the transmission is still 100 % (lossless, equal mirrors). Off resonance hardly \
                          anything gets in. Try 99.9 %, or give a mirror 0.5 % loss: the transmission peak drops."
                     }

@@ -333,6 +333,10 @@ they require it only because the whole app does.
 - `cargo clippy` (native and wasm32): no warnings in the new files.
 - Screenshots of every new example from the desktop build under Xvfb with
   Mesa's software Vulkan (lavapipe); see the CLAUDE.md note on screenshots.
+- `trunk build --release` succeeds. In headless Chromium with SwiftShader
+  WebGPU, the app starts, switches to both new benches by clicking the menu
+  bar, runs the switch-on and the far-field view, and saves the state
+  (`mode: Grating`), with no panic and no console errors.
 
 **Not verified**
 - The owner's check on the Mac and in the browser.
