@@ -17,6 +17,7 @@ pub enum Mode {
     Fourier,
     Dispersion,
     Rainbow,
+    Interferometer,
 }
 
 /// everything of a result except the images (those live in textures)

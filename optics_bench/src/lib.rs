@@ -1,5 +1,6 @@
 //! Optics Bench: a GPU ray-optics bench, a 4f Fourier-optics bench, a
-//! dispersion bench (with thunder and whistlers) and a rainbow bench.
+//! dispersion bench (with thunder and whistlers), a rainbow bench and an
+//! interferometer bench (cavities, beam splitters, polarisation).
 //!
 //! The same app runs as a desktop program (`main.rs`) and in the browser
 //! (WebAssembly + WebGPU, also started from `main.rs`).
@@ -11,6 +12,8 @@ mod dispersion;
 mod dispersion_ui;
 mod fourier;
 mod fourier_ui;
+mod interferometer;
+mod interferometer_ui;
 mod gpu;
 mod rainbow;
 mod rainbow_ui;

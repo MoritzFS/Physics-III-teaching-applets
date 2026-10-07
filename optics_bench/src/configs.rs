@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::dispersion::DispParams;
 use crate::fourier::FourierParams;
 use crate::fourier_ui::Mode;
+use crate::interferometer::IfoParams;
 use crate::rainbow::RainbowParams;
 use crate::scene::Scene;
 
@@ -48,6 +49,11 @@ pub struct ConfigFile {
     pub rainbow: Option<RainbowParams>,
     #[serde(default)]
     pub rainbow_notes: String,
+    /// the interferometer bench
+    #[serde(default)]
+    pub interferometer: Option<IfoParams>,
+    #[serde(default)]
+    pub interferometer_notes: String,
 }
 
 pub struct Entry {
@@ -231,10 +237,13 @@ mod tests {
                 sound_notes: "z".into(),
                 rainbow: Some(RainbowParams::default()),
                 rainbow_notes: "r".into(),
+                interferometer: Some(IfoParams::default()),
+                interferometer_notes: "i".into(),
             };
             let json = serde_json::to_string_pretty(&cfg).unwrap();
             let back: ConfigFile = serde_json::from_str(&json).unwrap();
             assert_eq!(back.scene, cfg.scene, "{}", p.label());
+            assert_eq!(back.interferometer, cfg.interferometer);
         }
     }
 
@@ -252,6 +261,8 @@ mod tests {
             sound_notes: String::new(),
             rainbow: None,
             rainbow_notes: String::new(),
+            interferometer: None,
+            interferometer_notes: String::new(),
         };
         let key = save(&cfg).unwrap();
         assert!(exists("zz test config"));
@@ -282,9 +293,23 @@ mod tests {
             sound_notes: String::new(),
             rainbow: None,
             rainbow_notes: String::new(),
+            interferometer: None,
+            interferometer_notes: String::new(),
         })
         .unwrap();
-        for key in ["view", "mode", "fourier", "fourier_notes", "dispersion", "dispersion_notes", "sound_notes", "rainbow", "rainbow_notes"] {
+        for key in [
+            "view",
+            "mode",
+            "fourier",
+            "fourier_notes",
+            "dispersion",
+            "dispersion_notes",
+            "sound_notes",
+            "rainbow",
+            "rainbow_notes",
+            "interferometer",
+            "interferometer_notes",
+        ] {
             v.as_object_mut().unwrap().remove(key);
         }
         v["scene"].as_object_mut().unwrap().remove("notes");

@@ -4,6 +4,7 @@
 #   ./shot.sh out.png f2                Fourier-optics (4f) example number 2
 #   ./shot.sh out.png d2                dispersion example number 2 (T=0.6 ./shot.sh … shows 60 % of the run)
 #   ./shot.sh out.png r2                rainbow example number 2
+#   ./shot.sh out.png i2                interferometer example number 2
 #   ./shot.sh out.png my_config.json    a saved configuration
 #   ./shot.sh out.png 4 3d              ... with the 3D bench view
 # The window pops up for a few seconds while the image converges.
@@ -15,6 +16,8 @@ elif [[ "$2" == f* ]]; then
     export OPTICS_FOURIER="${2#f}"
 elif [[ "$2" == r* ]]; then
     export OPTICS_RAINBOW="${2#r}"
+elif [[ "$2" == i* ]]; then
+    export OPTICS_IFO="${2#i}"
 elif [[ "$2" == d* ]]; then
     export OPTICS_DISPERSION="${2#d}"
     [[ -n "$T" ]] && export OPTICS_DISP_T="$T"
