@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::dispersion::DispParams;
 use crate::fourier::FourierParams;
 use crate::fourier_ui::Mode;
+use crate::grating::GratingParams;
 use crate::interferometer::IfoParams;
 use crate::rainbow::RainbowParams;
 use crate::scene::Scene;
@@ -54,6 +55,11 @@ pub struct ConfigFile {
     pub interferometer: Option<IfoParams>,
     #[serde(default)]
     pub interferometer_notes: String,
+    /// the grating spectrometer
+    #[serde(default)]
+    pub grating: Option<GratingParams>,
+    #[serde(default)]
+    pub grating_notes: String,
 }
 
 pub struct Entry {
@@ -239,6 +245,8 @@ mod tests {
                 rainbow_notes: "r".into(),
                 interferometer: Some(IfoParams::default()),
                 interferometer_notes: "i".into(),
+                grating: Some(GratingParams::default()),
+                grating_notes: "g".into(),
             };
             let json = serde_json::to_string_pretty(&cfg).unwrap();
             let back: ConfigFile = serde_json::from_str(&json).unwrap();
@@ -263,6 +271,8 @@ mod tests {
             rainbow_notes: String::new(),
             interferometer: None,
             interferometer_notes: String::new(),
+            grating: None,
+            grating_notes: String::new(),
         };
         let key = save(&cfg).unwrap();
         assert!(exists("zz test config"));
@@ -295,6 +305,8 @@ mod tests {
             rainbow_notes: String::new(),
             interferometer: None,
             interferometer_notes: String::new(),
+            grating: None,
+            grating_notes: String::new(),
         })
         .unwrap();
         for key in [
@@ -309,6 +321,8 @@ mod tests {
             "rainbow_notes",
             "interferometer",
             "interferometer_notes",
+            "grating",
+            "grating_notes",
         ] {
             v.as_object_mut().unwrap().remove(key);
         }

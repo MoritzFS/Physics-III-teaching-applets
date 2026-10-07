@@ -18,6 +18,9 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
   - `src/sound.rs`, `src/sound_ui.rs`, `src/audio.rs`: its sound tab (thunder,
     whistlers) and sound output (cpal; Web Audio in the browser).
   - `src/rainbow.rs`, `src/rainbow_ui.rs`: rainbow bench (PS02, exercise 8).
+  - `src/interferometer.rs`, `src/interferometer_ui.rs`: interferometer bench
+    (optical table on a grid, Jones vectors, cavities, switch-on in time).
+  - `src/grating.rs`, `src/grating_ui.rs`: grating spectrometer bench.
   - `src/worker.rs`: newest-request-only background work (in place on the web).
   - `src/lib.rs`, `src/main.rs`, `src/web.rs`: start-up and browser helpers.
   - `optics_bench/README.md` explains features and physics.
@@ -33,7 +36,10 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
 - On Linux, the native build needs an eframe windowing feature (`x11` or
   `wayland`); see HANDOFF.md, task 1.
 - The native app can't be run without a display. Visual checks were done on
-  macOS with the screenshot hook (`OPTICS_SHOT=...`, see `shot.sh`).
+  macOS with the screenshot hook (`OPTICS_SHOT=...`, see `shot.sh`). In a
+  Linux cloud container it works under Xvfb with Mesa's software Vulkan
+  (packages `xvfb`, `mesa-vulkan-drivers`, `libxkbcommon-x11-0`), e.g.
+  `xvfb-run -a -s "-screen 0 1600x1100x24" ./shot.sh out.png i0`.
 - The owner teaches with this. Keep physics statements in notes and UI text
   correct, and say so when something is an approximation.
 - Work only in this repo (`~/Documents/phd_local/...`). The old copy in the

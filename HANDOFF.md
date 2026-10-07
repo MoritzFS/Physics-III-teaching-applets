@@ -285,3 +285,67 @@ commit on top of `c22e74e` and merged into `main`, so the history shows both.
   tables 40 ms, sky 18 ms at 1400×420.
 - Module doc formulas are in ```` ```text ```` blocks: since the split into
   `lib.rs`, `cargo test` runs doc tests, and indented lines count as code.
+
+## 9. Interferometer and grating benches (2026-10-07)
+
+Two more benches in Optics Bench, switched in the menu bar like the others,
+with examples, notes, saving and README sections. They are benches rather
+than separate applets, so they share the web build, the configurations and
+the deploy. They only draw with egui, so they don't need WebGPU themselves;
+they require it only because the whole app does.
+
+**Interferometers** (`interferometer.rs`, `interferometer_ui.rs`)
+- Parts sit on a square grid and beams run along the grid lines. A part is a
+  set of Jones matrices (arrival direction → departure direction) in the
+  beam frame (h, v, k), h = v × k. Mirrors reflect with diag(r, −r) and
+  transmit with i·t, so cavities made of whole squares resonate at Δν = 0
+  for both polarisations.
+- Steady state: dense complex Gaussian elimination over the beams that light
+  can reach (two systems of n unknowns when nothing mixes H and V).
+- Sweeps run on the worker. Points are budgeted by measured time (150 ms on
+  the desktop thread, 60 ms in the browser frame), with extra points around
+  sharp peaks and dips so that high-finesse lines are resolved.
+- Cavity readout: simple cycles of the beam graph (DFS, capped), keeping the
+  one with the highest round-trip gain. The eigenvalues of its round-trip
+  matrix give the polarisation modes and their resonance offsets.
+- Switch-on: one square per step, with a ring buffer per beam. The history is
+  capped at 200 000 steps.
+
+**Gratings** (`grating.rs`, `grating_ui.rs`)
+- Geometry: the arms are a fixed angle A apart and the grating is turned by
+  ψ, so α = ψ + A/2 and β = ψ − A/2 at the centre of the camera. In the
+  notes' convention, θ_i = −α and θ_m = β, so d(sin θ_m − sin θ_i) = mλ.
+- Camera:
+  - For each line and order, the N-slit pattern is computed on a fine grid
+    (as a delta when it is far narrower than the slit image and the pixel).
+  - It is then convolved with the slit image and integrated over the pixels,
+    using cumulative sums.
+  - White light is handled per pixel and order.
+- Calibration: peaks in the reference recording are matched to predicted
+  line positions within two line widths; ambiguous blends are skipped, and a
+  polynomial λ(pixel) is fitted. The straight-line residuals (0.35 nm) are
+  real: tan in the camera lens, sin in the grating equation.
+- Line lists are standard air wavelengths; the strengths are rough.
+
+**Verified** (cloud, Linux)
+- `cargo test --release`: 63 tests pass, 27 of them new, covering the physics
+  in the notes of both benches.
+- `cargo clippy` (native and wasm32): no warnings in the new files.
+- Screenshots of every new example from the desktop build under Xvfb with
+  Mesa's software Vulkan (lavapipe); see the CLAUDE.md note on screenshots.
+
+**Not verified**
+- The owner's check on the Mac and in the browser.
+- Mouse interaction was only reviewed in the code, not clicked through:
+  placing, dragging and turning parts; dragging the frequency line and the
+  grating; zooming the spectrum.
+
+**Possible follow-ups**
+- A Fourier-transform spectrometer view: a Michelson scanned over millimetres
+  and the FFT of its interferogram. This would tie the two benches together
+  (resolution = 1/largest path difference).
+- An example using the "broad band" laser spectrum: coherence length and
+  white-light fringes.
+- A Fabry–Pérot etalon as a spectrometer, next to the grating.
+- Transverse modes and Gaussian beams are not modelled. Every cavity is
+  perfectly aligned and mode-matched.

@@ -258,7 +258,7 @@ fn dir_vec(d: Dir) -> Vec2 {
 }
 
 /// to the right of the direction of travel, on the screen (y down)
-fn right_of(d: Vec2) -> Vec2 {
+pub(crate) fn right_of(d: Vec2) -> Vec2 {
     vec2(-d.y, d.x)
 }
 
@@ -268,8 +268,11 @@ fn laser_rgb(p: &IfoParams) -> [f32; 3] {
     if p.laser.wavelength_nm > 780.0 { [0.75, 0.12, 0.12] } else { [c[0].max(0.15), c[1], c[2]] }
 }
 
-/// width, colour and glow of a beam of power `ratio` × the laser power
-fn beam_style(ratio: f64, rgb: [f32; 3], s: f32) -> Option<(f32, Color32, Option<(f32, Color32)>)> {
+/// a stroke width and colour
+type Pen = (f32, Color32);
+
+/// width and colour of a beam of power `ratio` × the laser power, and its glow
+fn beam_style(ratio: f64, rgb: [f32; 3], s: f32) -> Option<(f32, Color32, Option<Pen>)> {
     if ratio < 1e-5 {
         return None;
     }
@@ -288,17 +291,17 @@ fn beam_style(ratio: f64, rgb: [f32; 3], s: f32) -> Option<(f32, Color32, Option
     Some((width, core, glow))
 }
 
-fn dashed(painter: &egui::Painter, a: Pos2, b: Pos2, stroke: Stroke) {
+pub(crate) fn dashed(painter: &egui::Painter, a: Pos2, b: Pos2, stroke: Stroke) {
     painter.extend(Shape::dashed_line(&[a, b], stroke, 5.0, 4.0));
 }
 
-fn arrow_head(painter: &egui::Painter, tip: Pos2, d: Vec2, size: f32, col: Color32) {
+pub(crate) fn arrow_head(painter: &egui::Painter, tip: Pos2, d: Vec2, size: f32, col: Color32) {
     let n = right_of(d);
     painter.add(Shape::convex_polygon(vec![tip, tip - d * size + n * size * 0.55, tip - d * size - n * size * 0.55], col, Stroke::NONE));
 }
 
 /// a label on a dark box
-fn tag(painter: &egui::Painter, pos: Pos2, align: Align2, text: &str, col: Color32, size: f32) -> Rect {
+pub(crate) fn tag(painter: &egui::Painter, pos: Pos2, align: Align2, text: &str, col: Color32, size: f32) -> Rect {
     let g = painter.layout_no_wrap(text.to_string(), FontId::proportional(size), col);
     let r = align.anchor_size(pos, g.size()).expand(2.0);
     painter.rect_filled(r, 2.0, Color32::from_black_alpha(170));
@@ -319,7 +322,7 @@ fn axis_unit(unit: &str, span: f64) -> (&'static str, f64) {
 }
 
 /// a polyline through many points, reduced to min/max per pixel column
-fn polyline(xs: &[f64], ys: &[f64], to_screen: impl Fn(f64, f64) -> Pos2, width_px: f32) -> Vec<Pos2> {
+pub(crate) fn polyline(xs: &[f64], ys: &[f64], to_screen: impl Fn(f64, f64) -> Pos2, width_px: f32) -> Vec<Pos2> {
     let n = xs.len().min(ys.len());
     let pts: Vec<Pos2> = (0..n).map(|i| to_screen(xs[i], ys[i])).collect();
     if (n as f32) < 3.0 * width_px {
@@ -348,7 +351,7 @@ fn polyline(xs: &[f64], ys: &[f64], to_screen: impl Fn(f64, f64) -> Pos2, width_
 }
 
 /// axes with ticks; returns the plot rectangle inside the margins
-fn axes(painter: &egui::Painter, rect: Rect, x: (f64, f64), y: (f64, f64), xlabel: &str, ylabel: &str, log: bool) -> Rect {
+pub(crate) fn axes(painter: &egui::Painter, rect: Rect, x: (f64, f64), y: (f64, f64), xlabel: &str, ylabel: &str, log: bool) -> Rect {
     let plot = Rect::from_min_max(rect.min + vec2(46.0, 8.0), rect.max - vec2(10.0, 30.0));
     painter.rect_filled(rect, 3.0, BG);
     let sx = |v: f64| plot.left() + ((v - x.0) / (x.1 - x.0)) as f32 * plot.width();

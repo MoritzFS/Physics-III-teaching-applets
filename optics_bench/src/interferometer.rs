@@ -128,18 +128,15 @@ pub fn describe_polarisation(v: &Jones) -> String {
         return if e > 0.0 { "circular ↺".into() } else { "circular ↻".into() };
     }
     let a = if a < -0.5 { a + 180.0 } else { a };
-    let lin = if e.abs() < 1.0 {
-        if a.abs() < 1.0 || (a - 180.0).abs() < 1.0 {
-            "linear H".to_string()
-        } else if (a - 90.0).abs() < 1.0 {
-            "linear V".to_string()
-        } else {
-            format!("linear {a:.0}°")
-        }
-    } else {
+    if e.abs() >= 1.0 {
         format!("elliptical, axis {a:.0}°, {}", if e > 0.0 { "↺" } else { "↻" })
-    };
-    lin
+    } else if a.abs() < 1.0 || (a - 180.0).abs() < 1.0 {
+        "linear H".to_string()
+    } else if (a - 90.0).abs() < 1.0 {
+        "linear V".to_string()
+    } else {
+        format!("linear {a:.0}°")
+    }
 }
 
 // ---------------------------------------------------------------- the table
@@ -330,7 +327,7 @@ impl Part {
     pub fn new(kind: Kind, x: i32, y: i32, turn: u8) -> Part {
         let mut p = Part { kind, x, y, turn, ..Part::default() };
         match kind {
-            Kind::Pbs => p.turn = if turn % 2 == 0 { SLASH } else { turn % 4 },
+            Kind::Pbs => p.turn = if turn.is_multiple_of(2) { SLASH } else { turn % 4 },
             Kind::Waveplate => p.retard = 0.5,
             Kind::Faraday => p.angle_deg = 45.0,
             _ => {}
@@ -477,9 +474,9 @@ pub fn retard_name(r: f64) -> String {
 
 pub fn fmt_percent(r: f64) -> String {
     let p = 100.0 * r;
-    if p >= 99.95 && p < 100.0 {
+    if (99.95..100.0).contains(&p) {
         format!("{p:.2} %")
-    } else if p >= 99.0 && p < 100.0 {
+    } else if (99.0..100.0).contains(&p) {
         format!("{p:.1} %")
     } else {
         format!("{p:.0} %")
@@ -1399,8 +1396,8 @@ impl TimeSim {
         let mut out = vec![[ZERO; 2]; n];
         for _ in 0..steps {
             let t = self.step;
-            for k in 0..n {
-                arriving[k] = self.buffers[k][(t % self.lens[k] as u64) as usize];
+            for (k, a) in arriving.iter_mut().enumerate() {
+                *a = self.buffers[k][(t % self.lens[k] as u64) as usize];
             }
             out.iter_mut().for_each(|v| *v = [ZERO; 2]);
             for (term, ph) in self.sys.terms.iter().zip(&self.term_phase) {
@@ -1435,9 +1432,8 @@ impl TimeSim {
                 let f = C64::from_polar(1.0, 2.0 * std::f64::consts::PI * self.detune * t as f64 * self.tau);
                 self.phasor.push([at_probe[0] * f, at_probe[1] * f]);
             }
-            for k in 0..n {
-                let slot = (t % self.lens[k] as u64) as usize;
-                self.buffers[k][slot] = out[k];
+            for ((buf, &len), v) in self.buffers.iter_mut().zip(&self.lens).zip(&out) {
+                buf[(t % len as u64) as usize] = *v;
             }
             self.step += 1;
         }

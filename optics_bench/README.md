@@ -1,8 +1,9 @@
 # Optics Bench
 
 An interactive optics bench on a lawn, for teaching geometrical optics,
-with a Fourier-optics (4f) bench, a dispersion bench (wave packets, thunder)
-and a rainbow bench. Written in Rust. egui draws the interface and wgpu (Metal
+with a Fourier-optics (4f) bench, a dispersion bench (wave packets, thunder),
+a rainbow bench, an interferometer bench (cavities, beam splitters,
+polarisation) and a grating spectrometer. Written in Rust. egui draws the interface and wgpu (Metal
 on macOS, WebGPU in the browser) runs the GPU ray tracer.
 
 **Open it in the browser:**
@@ -294,6 +295,144 @@ and θ_max from the exercise, the Descartes formula against a brute-force
 search, energy conservation over all orders, the ~92 % polarisation, and that
 the sky is brighter inside the bow and dark in Alexander's band.
 
+## Interferometers
+
+Switch with **Interferometers** in the menu bar. An optical table with a square
+grid: a laser, mirrors, beam splitters, polarisation optics and detectors, to
+build cavities and interferometers.
+
+```
+┌ OPTICAL TABLE ───────────────────────────┬ SWEEP ─────────────────────┐
+│ parts on the squares, beams between      │ detector power vs laser    │
+│ them (width and brightness = power)      │ frequency (or a setting)   │
+│                                          ├ SWITCH-ON ─────────────────┤
+│                                          │ power vs time, phasor      │
+├ TOOLBOX ──────┬ SELECTED ─────┬ LASER ───┴─────┬ SWEEP AND VIEW ──────┤
+```
+
+* **Parts**: laser (one per table), mirror, beam splitter and cavity mirror
+  (all the same part: any reflectivity R, a loss, and a shift along its normal,
+  as by a piezo), PBS (passes H, reflects V), λ/2 and λ/4 plates (any
+  retardance and axis), polariser, phase shifter, Faraday rotator, detector
+  and beam block. Pick a part in the toolbox and click a square. Drag parts to
+  move them; right-click or R turns them (mirrors in 45° steps), Delete
+  removes them, the arrow keys move them by a square.
+* **Table**: the width and brightness of a beam show its power relative to the
+  laser. Inside a resonant cavity the beam is stronger than the laser
+  (labelled "× laser power"), the more so the better the mirrors. Beams going
+  both ways are drawn side by side. Hover a beam for its power and
+  polarisation. The circles show the polarisation (looking into the beam,
+  H = in the plane of the table) at the laser and wherever it has changed.
+* **Sweep**: the detector powers, and the light coming back into the laser, as
+  the laser frequency is swept, or as one part's setting is scanned (a
+  mirror's position, a phase, a waveplate or polariser angle, a Faraday
+  rotation). The peak spacing and width are measured on D1. The readout gives
+  the round trip of the cavity on the table, FSR = c/L and the finesse
+  π√ρ/(1 − ρ), where ρ is the field left after one round trip; green ticks mark
+  the predicted resonances. "in FSR" puts the frequency axis in units of the
+  FSR. Drag the yellow line (or press **▶ sweep**) to tune the laser through a
+  resonance and watch the table.
+* **Switch-on**: the laser starts at t = 0 and the light moves one square per
+  time step (83 ps for 25 mm squares). Watch it fill the setup and the field in
+  a cavity grow round trip by round trip; "laser off" shows the ring-down. The
+  plot shows the detector powers against time (dashed: the steady state) and
+  the field at D1 in the complex plane: a chain of phasors, one per round trip.
+* **Laser**: wavelength (it sets the colour and the scale of mirror shifts),
+  power, detuning Δν, polarisation, and the spectrum: one line, two lines or
+  a broad band. Different lines do not interfere; their powers add.
+* **Examples** (Scene → Examples: interferometers): Fabry–Pérot resonances and
+  FSR, better mirrors (finesse and build-up), switch-on, unequal mirrors
+  (impedance matching), ring cavity, measuring the reflection with PBS and
+  λ/4, coupled cavities, a waveplate in a cavity (two polarisation modes),
+  Michelson (λ/2 per fringe), Michelson with unequal arms (frequency
+  dependence), Michelson with two lines (resolving them), Mach–Zehnder,
+  Sagnac, λ/2 plate and PBS, optical isolator.
+
+The fields are Jones vectors (H in the plane of the table, V vertical). Each
+part maps the fields arriving on its four sides to the fields leaving them.
+Mirrors reflect H with +r and V with −r, as an ideal metal mirror does, and
+transmit with i·t; this keeps every beam splitter lossless. Real dielectric
+coatings have other phases, different for s and p. At the reference frequency
+every square holds a whole number of wavelengths, so a detuning Δν gives the
+phase 2πΔνL/c over a length L. The steady state is the exact solution of the
+linear system of all beams: every round trip of every cavity is included. The
+beams are plane waves: there are no transverse modes, no divergence and no
+misalignment, so every cavity is perfectly aligned and mode-matched. The
+switch-on uses the main line only and treats mirror shifts as phases. Unit
+tests check the Airy transmission, FSR and finesse, the build-up T/(1 − R)²,
+energy conservation, the complementary outputs of the Michelson and
+Mach–Zehnder, the dark port of the Sagnac, PBS + λ/4, the isolator, the
+splitting of the polarisation modes, and that the switch-on settles to the
+steady state.
+
+## Gratings
+
+Switch with **Gratings** in the menu bar. A grating spectrometer as in the
+lecture notes: a source and a reference lamp are combined at a beam splitter
+and focused onto the entrance slit; a lens (f₁) makes the light parallel, an
+iris sets the lit width W of a reflection grating, and a second lens (f₂)
+focuses every direction onto a line camera.
+
+```
+┌ SPECTROMETER (seen from above) ─────┬ RESOLUTION ──────────────────────┐
+│ lamps, slit, lenses, grating, the   │ N, θ_i, θ_m, Δ = Nd(sin θ_m −    │
+│ orders, the camera                  │ sin θ_i), λ/δλ = mN; phasors      │
+├ SPECTRUM (on the camera | in all directions) ──────────┬ CALIBRATION ─┤
+├ LAMPS ────────┬ GRATING ───────┬ SPECTROMETER ──────────┬ VIEW ───────┤
+```
+
+* **Spectrometer**: the setup with its real angles. Every line of the lamps
+  leaves the grating in all its orders; the beams that reach the camera lens
+  are focused onto the camera, whose colour strip shows what it records. Drag
+  the grating to turn it (shift: finely), or press **▶ turn**.
+* **Resolution**: the number of lit grooves N = W/d, the angles θ_i and θ_m
+  (from the grating normal, d(sin θ_m − sin θ_i) = mλ as in the notes), the
+  path difference across the lit grating Δ = Nd(sin θ_m − sin θ_i) = mNλ, the
+  resolving power λ/δλ = mN = Δ/λ, and its limit λ/δλ ≤ 2W/λ, because Δ can
+  never exceed 2Nd. It also gives the limits set by the slit and the pixels,
+  and which of the three limits the current setting. The drawings show the
+  extra path of the outermost rays (blue), and the phasors of the N grooves at
+  the maximum of λ: for λ + δλ every groove adds 2π·mδλ/λ, the chain curls up,
+  and at δλ = λ/(mN) it closes into a circle (Rayleigh's criterion).
+* **Spectrum on the camera**: what the camera records with the source lamps
+  (blue) and with the reference lamps (orange). The wavelength axis comes from
+  the calibration (a polynomial λ(pixel) through the reference lines it finds,
+  with a table of the residuals), from the grating equation, or is in pixels.
+  Lines of a reference lamp in another order are listed but not used. Scroll
+  to zoom, drag to move, double-click for the whole camera.
+* **Spectrum in all directions**: the intensity against the path difference
+  between neighbouring grooves, d(sin θ_m − sin θ_i), so the orders of λ sit
+  at mλ, with N − 2 weak maxima between them. The green band is what the
+  camera sees.
+* **Lamps**: mercury, neon, sodium, hydrogen (Balmer), helium, cadmium, HeNe
+  and green lasers, a white lamp (2900 K), and a test pair of lines with any
+  separation. Each can be a source or a reference. The wavelengths are the
+  standard values in air; the relative strengths are rough, as they differ
+  from lamp to lamp.
+* **Grating**: lines per mm, lit width W, blazed (sawtooth facets at the blaze
+  angle) or flat reflecting strips (any width), and the angle it is turned by.
+  **Spectrometer**: slit width, f₁ and f₂, the angle between the arms
+  (0 = Littrow), the camera's pixels. **Calibration**: the degree of the fit.
+* **Examples** (Scene → Examples: grating spectrometer): how it works,
+  calibrating with reference lamps, the sodium doublet (how many grooves),
+  second order, Rayleigh's criterion and the phasors, slit and pixels, the
+  limit δλ/λ ≥ λ/2Nd, a few grooves (the N-slit pattern), white light and
+  the blaze, ghost lines from overlapping orders.
+
+The light of a line is the Fraunhofer pattern of N evenly lit grooves,
+sin²(Nφ/2)/sin²(φ/2) with φ = 2πd(sin θ_m − sin θ_i)/λ, times the pattern of a
+single groove, a tilted facet or a strip of width b:
+sinc²(πb(sin α′ + sin β′)/λ), with the angles measured from its own normal.
+This is scalar theory without polarisation or shadowing, so the efficiencies
+of the orders are approximate. The lenses are ideal. The camera position is
+x = f₂ tan(β − β_c), so λ(pixel) is not linear; the pattern is smeared by the
+image of the slit (its width times f₂/f₁ · cos θ_i/cos θ_m) and summed over
+each pixel. Unit tests check the grating equation, that a line keeps its
+power on the camera, that the sodium doublet needs about 990 grooves in the
+first order and is resolved with 600 in the second, the 81 % (8/π²) dip of
+two lines at Rayleigh's distance, the calibration residuals, the
+second-order ghosts and the N − 2 weak maxima.
+
 ## Saving configurations
 
 **Scene → Save / manage configurations…** (or Cmd+S; Ctrl+S on Windows and
@@ -379,8 +518,12 @@ tree are mostly on one side.
 | `src/audio.rs` | sound output (cpal) |
 | `src/rainbow.rs` | rays in a drop, Fresnel weights, sky brightness, rainbow examples |
 | `src/rainbow_ui.rs` | user interface of the rainbow bench |
+| `src/interferometer.rs` | the optical table: Jones matrices of the parts, steady state, sweeps, switch-on in time, interferometer examples |
+| `src/interferometer_ui.rs` | user interface of the interferometer bench |
+| `src/grating.rs` | grating spectrometer: lamps, line shapes on the camera, far field, calibration, grating examples |
+| `src/grating_ui.rs` | user interface of the grating bench |
 | `src/worker.rs` | background thread for the newest request (computes in place in the browser) |
 | `src/main.rs`, `src/lib.rs` | start-up on the desktop and in the browser |
 | `src/web.rs` | browser helpers: storage, downloading and opening files |
 | `index.html`, `Trunk.toml` | the web page and its build |
-| `shot.sh` | saves a screenshot of an example or a saved configuration, e.g. for slides (`d3` = dispersion example 3, `r0` = rainbow example 0) |
+| `shot.sh` | saves a screenshot of an example or a saved configuration, e.g. for slides (`d3` = dispersion example 3, `r0` = rainbow example 0, `i2` = interferometer example 2, `g4` = grating example 4) |

@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use crate::configs::{self, ConfigFile, SavedView};
 use crate::dispersion::{DispParams, DispPreset, Tab};
 use crate::dispersion_ui::DispUi;
+use crate::grating::{GratingParams, GratingPreset};
+use crate::grating_ui::GratingUi;
 use crate::interferometer::{IfoParams, IfoPreset};
 use crate::interferometer_ui::IfoUi;
 use crate::rainbow::{RainbowParams, RainbowPreset};
@@ -178,6 +180,8 @@ struct Persist {
     rainbow: Option<(RainbowParams, String)>,
     #[serde(default)]
     interferometer: Option<(IfoParams, String)>,
+    #[serde(default)]
+    grating: Option<(GratingParams, String)>,
 }
 
 enum Drag {
@@ -190,12 +194,13 @@ enum Drag {
 }
 
 pub struct OpticsApp {
-    /// ray-optics bench, 4f Fourier bench, dispersion, rainbow or interferometer bench
+    /// ray-optics bench, 4f Fourier bench, dispersion, rainbow, interferometer or grating bench
     mode: Mode,
     four: FourierUi,
     disp: DispUi,
     bow: RainbowUi,
     ifo: IfoUi,
+    grating: GratingUi,
     scene: Scene,
     settings: Settings,
     selected: Option<u32>,
@@ -257,6 +262,7 @@ impl OpticsApp {
             disp: DispUi::default(),
             bow: RainbowUi::default(),
             ifo: IfoUi::default(),
+            grating: GratingUi::default(),
             scene: Scene::default(),
             settings: Settings::default(),
             selected: None,
@@ -308,6 +314,10 @@ impl OpticsApp {
                     app.ifo.params = params;
                     app.ifo.notes = notes;
                 }
+                if let Some((params, notes)) = p.grating {
+                    app.grating.params = params;
+                    app.grating.notes = notes;
+                }
             }
         }
         if let Some(rs) = cc.wgpu_render_state.as_ref() {
@@ -334,6 +344,10 @@ impl OpticsApp {
             if let Some(i) = std::env::var("OPTICS_IFO").ok().and_then(|p| p.parse::<usize>().ok()) {
                 app.mode = Mode::Interferometer;
                 app.ifo.load_preset(IfoPreset::ALL[i.min(IfoPreset::ALL.len() - 1)]);
+            }
+            if let Some(i) = std::env::var("OPTICS_GRATING").ok().and_then(|p| p.parse::<usize>().ok()) {
+                app.mode = Mode::Grating;
+                app.grating.load_preset(GratingPreset::ALL[i.min(GratingPreset::ALL.len() - 1)]);
             }
             if let Ok(path) = std::env::var("OPTICS_LOAD") {
                 app.load_config(&std::path::PathBuf::from(path));
@@ -1883,6 +1897,15 @@ impl OpticsApp {
                         }
                     }
                 });
+                ui.menu_button("Examples: grating spectrometer", |ui| {
+                    for p in GratingPreset::ALL {
+                        if ui.button(p.label()).clicked() {
+                            self.grating.load_preset(p);
+                            self.mode = Mode::Grating;
+                            ui.close();
+                        }
+                    }
+                });
                 let saved = configs::list();
                 ui.add_enabled_ui(!saved.is_empty(), |ui| {
                     ui.menu_button("My configurations", |ui| {
@@ -1923,11 +1946,12 @@ impl OpticsApp {
                 ui.label("• FOURIER OPTICS (4f): switch in the menu bar. Scalar wave optics: input field (colour = phase, brightness = amplitude, plus the wavefront along the centre line), Fraunhofer pattern in the Fourier plane with a filter, filtered image, and the propagation through the whole system. Scroll in a panel to zoom, drag in the Fourier plane to size the filter.");
                 ui.label("• DISPERSION: a pulse (Gaussian, delta, switched wave or a few frequencies) travels through a medium with refractive index n(ω). Top: the wave; middle: its path in space and time and the signal at an observer (press 'listen'); bottom: the dispersion relation — drag its white points, click to pick frequency components. The second tab plays thunder from different distances and a whistler.");
                 ui.label("• INTERFEROMETERS: an optical table with a laser, mirrors, beam splitters, polarisation optics and detectors on a square grid. The fields are solved exactly (all round trips of a cavity); the beam width shows the power. Right: the detector powers while the laser frequency (or a part's setting) is swept, with the measured FSR and linewidth, and the switch-on in time, square by square.");
+                ui.label("• GRATINGS: a grating spectrometer with source and reference lamps, a slit, a reflection grating and a line camera. Top: the setup (drag the grating to turn it) and why the resolution is λ/δλ = mN = (path difference across the grating)/λ, with the phasors of the grooves. Middle: what the camera records, calibrated with the reference lines, or the light in all directions.");
                 ui.label("• RAINBOW: sunlight in spherical drops (PS02, exercise 8). Top: the rays in one drop (drag to move the ray), the deviation δ(θ) for each colour, and a side view of you and the rain; middle: the sky with the bows; bottom: light, drop and which light paths to show. Pick an angle by dragging the yellow line, the drop in the side view, or by clicking in the sky.");
                 ui.label(if cfg!(target_arch = "wasm32") {
-                    "• Save scenes (with notes for students) via Scene → Save / manage configurations. They are kept in this browser; download them as .json files to keep or share them, and open a .json file with Open .json… or by dropping it onto the page. The files also work in the desktop app."
+                    "• Save scenes (with notes for students) via Scene > Save / manage configurations. They are kept in this browser; download them as .json files to keep or share them, and open a .json file with Open .json… or by dropping it onto the page. The files also work in the desktop app."
                 } else {
-                    "• Save scenes (with notes for students) via Scene → Save / manage configurations. They are JSON files in the folder 'Optics Bench configs' next to the app; drop one onto the window to open it."
+                    "• Save scenes (with notes for students) via Scene > Save / manage configurations. They are JSON files in the folder 'Optics Bench configs' next to the app; drop one onto the window to open it."
                 });
                 ui.label("• Stickman: red = his left arm and leg, blue = his right. The F-sign and the apples on the tree are asymmetric too, so you can see how images are flipped.");
                 ui.label("• Top view: red/blue ray fans start at the left/right edge of each object (select an object to show only its rays).");
@@ -1938,6 +1962,7 @@ impl OpticsApp {
             ui.selectable_value(&mut self.mode, Mode::Dispersion, "Dispersion");
             ui.selectable_value(&mut self.mode, Mode::Rainbow, "Rainbow");
             ui.selectable_value(&mut self.mode, Mode::Interferometer, "Interferometers");
+            ui.selectable_value(&mut self.mode, Mode::Grating, "Gratings");
             if self.mode == Mode::Dispersion {
                 ui.separator();
                 ui.selectable_value(&mut self.disp.params.tab, Tab::Waves, "wave packets");
@@ -2023,6 +2048,8 @@ impl OpticsApp {
             rainbow_notes: self.bow.notes.clone(),
             interferometer: Some(self.ifo.params.clone()),
             interferometer_notes: self.ifo.notes.clone(),
+            grating: Some(self.grating.params.clone()),
+            grating_notes: self.grating.notes.clone(),
         }
     }
 
@@ -2071,6 +2098,10 @@ impl OpticsApp {
                 if let Some(ip) = cfg.interferometer {
                     self.ifo.params = ip;
                     self.ifo.notes = cfg.interferometer_notes;
+                }
+                if let Some(gp) = cfg.grating {
+                    self.grating.params = gp;
+                    self.grating.notes = cfg.grating_notes;
                 }
                 self.configs.message = Some((format!("Opened '{}'", cfg.name), true));
                 self.configs.name = cfg.name;
@@ -2121,6 +2152,7 @@ impl OpticsApp {
                     Mode::Dispersion => &mut self.disp.notes,
                     Mode::Rainbow => &mut self.bow.notes,
                     Mode::Interferometer => &mut self.ifo.notes,
+                    Mode::Grating => &mut self.grating.notes,
                     Mode::Ray => &mut self.scene.notes,
                 };
                 ui.add(egui::TextEdit::multiline(notes).desired_rows(3).desired_width(f32::INFINITY));
@@ -2292,6 +2324,14 @@ impl eframe::App for OpticsApp {
             self.debug_shot(&ctx);
             return;
         }
+        if self.mode == Mode::Grating {
+            self.grating.update(&ctx);
+            self.grating.ui(ui);
+            self.config_window_ui(&ctx);
+            self.handle_dropped_files(&ctx);
+            self.debug_shot(&ctx);
+            return;
+        }
         let win_h = ctx.content_rect().height();
         egui::Panel::top("views")
             .resizable(true)
@@ -2355,6 +2395,7 @@ impl eframe::App for OpticsApp {
                 dispersion: Some((self.disp.params.clone(), self.disp.notes.clone(), self.disp.sound_notes.clone())),
                 rainbow: Some((self.bow.params.clone(), self.bow.notes.clone())),
                 interferometer: Some((self.ifo.params.clone(), self.ifo.notes.clone())),
+                grating: Some((self.grating.params.clone(), self.grating.notes.clone())),
             },
         );
     }

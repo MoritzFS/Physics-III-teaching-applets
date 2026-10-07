@@ -18,6 +18,7 @@ pub enum Mode {
     Dispersion,
     Rainbow,
     Interferometer,
+    Grating,
 }
 
 /// everything of a result except the images (those live in textures)
