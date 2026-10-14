@@ -21,6 +21,9 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
   - `src/interferometer.rs`, `src/interferometer_ui.rs`: interferometer bench
     (optical table on a grid, Jones vectors, cavities, switch-on in time).
   - `src/grating.rs`, `src/grating_ui.rs`: grating spectrometer bench.
+  - `src/polarisation.rs`, `src/polarisation_ui.rs`: polarisation bench (Saleh &
+    Teich 6.1: wave, ellipse, Poincaré sphere, Jones matrices; convention
+    e^{i(kz−ωt)} as in the problem sets).
   - `src/worker.rs`: newest-request-only background work (in place on the web).
   - `src/lib.rs`, `src/main.rs`, `src/web.rs`: start-up and browser helpers.
   - `optics_bench/README.md` explains features and physics.

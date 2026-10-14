@@ -363,3 +363,51 @@ they require it only because the whole app does.
   perfectly aligned and mode-matched.
 - A fixed Fabry–Pérot etalon with its rings on a camera, next to the grating
   spectrometer.
+
+## 10. Polarisation bench (2026-10-14)
+
+A seventh bench, **Polarisation** (`polarisation.rs`, `polarisation_ui.rs`),
+after Saleh & Teich, Sec. 6.1: the wave along z (Fig. 6.1-1), the ellipse in
+the x–y plane with ψ and χ (Fig. 6.1-5), the Poincaré sphere, and the Jones
+calculus with polarisers, λ/2 and λ/4 plates, general wave plates and
+rotators. Like the others it only draws with egui.
+
+- Convention: the problem sets', E = Re[J e^{i(kz − ωt)}], so right circular
+  is (1, −i)/√2 and M_QWP (fast axis vertical) = e^{iπ/4} diag(1, −i). Saleh
+  & Teich's vectors are the complex conjugates; the handedness names agree
+  (right = clockwise looking into the beam, χ > 0, upper half of the sphere).
+- Wave plate with the fast axis at θ: R(θ) diag(e^{−iΓ/2}, e^{iΓ/2}) R(−θ).
+  The input is stored as (ψ, χ) and written with J_x real.
+- Numbers are written as by hand where they are simple (½, 1/√2, √3/2, …),
+  and a common phase is taken out of a matrix or vector when that makes it
+  shorter (`best_phase`).
+- egui's text font (Ubuntu Light) draws χ exactly like x. `assets/hack-chi.ttf`
+  is the χ of the Hack font (already bundled with egui; MIT/Bitstream Vera
+  licence in `assets/Hack-LICENSE.txt`), installed with the highest priority
+  for proportional text. It holds only that one glyph.
+- Sliders that show a value derived from others (a_x and φ) use
+  `SliderClamping::Edits`: with the default clamping egui re-sets and rounds
+  the value every frame, which reported a change and nudged ψ and χ.
+- Links: the page address follows the open bench (`#polarisation`,
+  `#grating`, …, via `history.replaceState`), and a link with such a name
+  opens that bench. The landing page links every bench this way. On the
+  desktop, `OPTICS_BENCH=polarisation` does the same; `./shot.sh out.png p9`
+  takes a screenshot of polarisation example 9.
+
+**Verified** (cloud, Linux)
+- `cargo test --release`: 79 tests pass; 11 are new (states, sphere,
+  handedness in time and space, the matrices and result of PS03 exercise
+  13 b, Malus's law on the sphere, wave plates, rotator, number formatting,
+  links to the benches).
+- `cargo clippy` (native and wasm32): no warnings in the new files.
+- Screenshots of all 12 examples under Xvfb.
+- `trunk build --release`, then headless Chromium with SwiftShader WebGPU:
+  `#polarisation` opens the bench, clicking R sets χ = 45° (seen in the saved
+  state), dragging turns the sphere, and switching to Gratings and back
+  changes the address to `#grating` and `#polarisation`. No panic and no
+  console errors.
+
+**Not verified**
+- The owner's check on the Mac and in the browser.
+- Dragging the input point on the sphere and the clickable Jones rows were
+  only reviewed in the code.

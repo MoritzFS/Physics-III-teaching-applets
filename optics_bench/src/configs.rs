@@ -12,6 +12,7 @@ use crate::fourier::FourierParams;
 use crate::fourier_ui::Mode;
 use crate::grating::GratingParams;
 use crate::interferometer::IfoParams;
+use crate::polarisation::PolParams;
 use crate::rainbow::RainbowParams;
 use crate::scene::Scene;
 
@@ -60,6 +61,11 @@ pub struct ConfigFile {
     pub grating: Option<GratingParams>,
     #[serde(default)]
     pub grating_notes: String,
+    /// the polarisation bench
+    #[serde(default)]
+    pub polarisation: Option<PolParams>,
+    #[serde(default)]
+    pub polarisation_notes: String,
 }
 
 pub struct Entry {
@@ -247,11 +253,14 @@ mod tests {
                 interferometer_notes: "i".into(),
                 grating: Some(GratingParams::default()),
                 grating_notes: "g".into(),
+                polarisation: Some(PolParams::default()),
+                polarisation_notes: "p".into(),
             };
             let json = serde_json::to_string_pretty(&cfg).unwrap();
             let back: ConfigFile = serde_json::from_str(&json).unwrap();
             assert_eq!(back.scene, cfg.scene, "{}", p.label());
             assert_eq!(back.interferometer, cfg.interferometer);
+            assert_eq!(back.polarisation_notes, "p");
         }
     }
 
@@ -273,6 +282,8 @@ mod tests {
             interferometer_notes: String::new(),
             grating: None,
             grating_notes: String::new(),
+            polarisation: None,
+            polarisation_notes: String::new(),
         };
         let key = save(&cfg).unwrap();
         assert!(exists("zz test config"));
@@ -280,6 +291,19 @@ mod tests {
         assert_eq!(load(&key).unwrap().scene, cfg.scene);
         delete(&key).unwrap();
         assert!(!exists("zz test config"));
+    }
+
+    #[test]
+    fn links_name_the_benches() {
+        for m in Mode::ALL {
+            assert_eq!(Mode::from_slug(m.slug()), Some(m));
+            assert_eq!(serde_json::from_str::<Mode>(&serde_json::to_string(&m).unwrap()).unwrap(), m);
+        }
+        assert_eq!(Mode::from_slug("#Polarization"), Some(Mode::Polarisation));
+        assert_eq!(Mode::from_slug("gratings"), Some(Mode::Grating));
+        assert_eq!(Mode::from_slug("interferometers"), Some(Mode::Interferometer));
+        assert_eq!(Mode::from_slug(""), None);
+        assert_eq!(Mode::from_slug("nonsense"), None);
     }
 
     #[test]
@@ -307,6 +331,8 @@ mod tests {
             interferometer_notes: String::new(),
             grating: None,
             grating_notes: String::new(),
+            polarisation: None,
+            polarisation_notes: String::new(),
         })
         .unwrap();
         for key in [
@@ -323,6 +349,8 @@ mod tests {
             "interferometer_notes",
             "grating",
             "grating_notes",
+            "polarisation",
+            "polarisation_notes",
         ] {
             v.as_object_mut().unwrap().remove(key);
         }

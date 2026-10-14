@@ -3,7 +3,8 @@
 An interactive optics bench on a lawn, for teaching geometrical optics,
 with a Fourier-optics (4f) bench, a dispersion bench (wave packets, thunder),
 a rainbow bench, an interferometer bench (cavities, beam splitters,
-polarisation) and a grating spectrometer. Written in Rust. egui draws the interface and wgpu (Metal
+polarisation), a grating spectrometer and a polarisation bench (Jones
+calculus, Poincaré sphere). Written in Rust. egui draws the interface and wgpu (Metal
 on macOS, WebGPU in the browser) runs the GPU ray tracer.
 
 **Open it in the browser:**
@@ -66,6 +67,12 @@ the same app in the browser (WebAssembly and WebGPU).
   download the ones you want to keep.
 * **Rendering** starts with 1 sample per frame and at most 512 samples, to be
   gentle on laptop GPUs. Both can be raised in the Rendering menu.
+* **Links to one bench**: the page address names the open bench, e.g.
+  [`optics-bench/#polarisation`](https://moritzfs.github.io/Physics-III-teaching-applets/optics-bench/#polarisation).
+  The names are `ray`, `fourier`, `dispersion`, `rainbow`, `interferometer`,
+  `grating` and `polarisation`. Such a link opens that bench with the settings
+  last used in this browser. (On the desktop, `OPTICS_BENCH=polarisation`
+  does the same.)
 
 ## Using it
 
@@ -454,6 +461,67 @@ first order and is resolved with 600 in the second, the 81 % (8/π²) dip of
 two lines at Rayleigh's distance, the calibration residuals, the
 second-order ghosts and the N − 2 weak maxima.
 
+## Polarisation
+
+Switch with **Polarisation** in the menu bar. The polarisation of a plane wave
+as in Saleh & Teich, Sec. 6.1, and the Jones calculus of problem set 3
+(exercise 13), with polarisers and wave plates.
+
+```
+┌ WAVE (along z) ───────────────┬ x–y PLANE ────────┬ POINCARÉ SPHERE ─┐
+│ the field at one moment, the  │ the ellipse, ψ, χ │ the states, the  │
+│ elements as plates            │ and the field now │ paths, 2ψ and 2χ │
+├ JONES CALCULUS ───────────────┴───────────────────┴──────────────────┤
+│ J_in, then for every element its matrix and the vector after it      │
+├ INPUT LIGHT ──────────┬ OPTICAL ELEMENTS ──────┬ VIEW ───────────────┤
+```
+
+* **Wave**: the tip of the field E(z) at one moment (Fig. 6.1-1), with arrows
+  from the axis, and optionally E_x and E_y. Linear light stays in a plane,
+  circular light is a helix. Let time run to see it move, pause it to look at
+  one moment, drag to turn the view. Every element is a plate across the beam
+  with its axis.
+* **x–y plane**: the field at one place, looking into the oncoming beam (z
+  towards you, x right, y up). The ellipse with its sense of rotation, the
+  rectangle 2a_x × 2a_y, the orientation ψ and the ellipticity χ
+  (Fig. 6.1-5), and the field turning in time. It shows the input or the
+  light after any element (VIEW, or click a row of the Jones calculus).
+* **Poincaré sphere**: the point (cos 2χ cos 2ψ, cos 2χ sin 2ψ, sin 2χ), with
+  H, V, ±45° and the circular states at the poles; right-handed light is on
+  the upper half. Drag the white point to choose the light, drag elsewhere to
+  turn the sphere. A wave plate turns the sphere about its fast axis (dashed)
+  by its retardance Γ, a rotator by 2ρ about the vertical axis, and a
+  polariser moves the state to its point on the equator (dashed line),
+  passing (1 + cos α)/2 of the power, α being the angle between the two
+  points.
+* **Jones calculus**: the input vector, each element's matrix and the vector
+  after it, the product of all matrices, and every state in words. A phase
+  common to all entries is written in front when that makes the entries
+  simpler, e.g. M_QWP = e^{iπ/4}[[1, 0], [0, −i]].
+* **Input light**: H, V, ±45°, R and L buttons, the angles ψ and χ, or the
+  amplitude a_x and the phase difference φ = φ_y − φ_x.
+* **Optical elements**: up to five polarisers, λ/2 and λ/4 plates, wave plates
+  of any retardance Γ and rotators, each with its angle, in any order, each
+  switchable.
+* **Examples** (Scene → Examples: polarisation): linear, right and left
+  circular, elliptical (ψ, χ and the sphere), Malus's law, λ/4 and λ/2
+  plates, two λ/4 plates make a λ/2 plate, three polarisers, PS03 exercise
+  13 b in both orders, and a rotator.
+
+**Convention.** As in the problem sets, E(z, t) = Re[J e^{i(kz − ωt)}], so
+right circular light is J = (1, −i)/√2 and left circular (1, i)/√2. Saleh &
+Teich use e^{j(ωt − kz)}: their Jones vectors and matrices are the complex
+conjugates of these, e.g. right circular (1, j)/√2. The names agree: right
+circular light turns clockwise looking into the beam, and at one moment its
+field is a right-handed helix. A wave plate with its fast axis at θ is
+R(θ) diag(e^{−iΓ/2}, e^{iΓ/2}) R(−θ), a polariser R(θ) diag(1, 0) R(−θ).
+The elements are ideal: no reflections at their surfaces, a polariser absorbs
+the crossed component completely, and the retardance does not depend on the
+wavelength. Unit tests check the round trip between J, (ψ, χ) and the sphere,
+the handedness in time and in space, the matrices and the result of PS03
+exercise 13 b, Malus's law on the sphere, and that two λ/4 plates make a λ/2
+plate.
+
 ## Saving configurations
 
 **Scene → Save / manage configurations…** (or Cmd+S; Ctrl+S on Windows and
@@ -543,8 +611,11 @@ tree are mostly on one side.
 | `src/interferometer_ui.rs` | user interface of the interferometer bench |
 | `src/grating.rs` | grating spectrometer: lamps, line shapes on the camera, far field, calibration, grating examples |
 | `src/grating_ui.rs` | user interface of the grating bench |
+| `src/polarisation.rs` | polarisation states (Jones vectors, ψ and χ, Stokes, Poincaré sphere), polarisers and wave plates, writing numbers as by hand, polarisation examples |
+| `src/polarisation_ui.rs` | user interface of the polarisation bench |
+| `assets/hack-chi.ttf` | the letter χ from the Hack font (egui's text font draws χ like x); licence in `assets/Hack-LICENSE.txt` |
 | `src/worker.rs` | background thread for the newest request (computes in place in the browser) |
 | `src/main.rs`, `src/lib.rs` | start-up on the desktop and in the browser |
-| `src/web.rs` | browser helpers: storage, downloading and opening files |
+| `src/web.rs` | browser helpers: storage, downloading and opening files, the page address |
 | `index.html`, `Trunk.toml` | the web page and its build |
-| `shot.sh` | saves a screenshot of an example or a saved configuration, e.g. for slides (`d3` = dispersion example 3, `r0` = rainbow example 0, `i2` = interferometer example 2, `g4` = grating example 4) |
+| `shot.sh` | saves a screenshot of an example or a saved configuration, e.g. for slides (`d3` = dispersion example 3, `r0` = rainbow example 0, `i2` = interferometer example 2, `g4` = grating example 4, `p9` = polarisation example 9) |

@@ -19,6 +19,32 @@ pub enum Mode {
     Rainbow,
     Interferometer,
     Grating,
+    Polarisation,
+}
+
+impl Mode {
+    pub const ALL: [Mode; 7] =
+        [Mode::Ray, Mode::Fourier, Mode::Dispersion, Mode::Rainbow, Mode::Interferometer, Mode::Grating, Mode::Polarisation];
+
+    /// the name in links to a bench, e.g. `optics-bench/#polarisation`
+    pub fn slug(self) -> &'static str {
+        match self {
+            Mode::Ray => "ray",
+            Mode::Fourier => "fourier",
+            Mode::Dispersion => "dispersion",
+            Mode::Rainbow => "rainbow",
+            Mode::Interferometer => "interferometer",
+            Mode::Grating => "grating",
+            Mode::Polarisation => "polarisation",
+        }
+    }
+
+    /// the bench of a link (also accepts "polarization", "gratings", …)
+    pub fn from_slug(s: &str) -> Option<Mode> {
+        let s = s.trim().trim_start_matches('#').to_ascii_lowercase().replace('z', "s");
+        let s = s.trim_end_matches('s');
+        Mode::ALL.into_iter().find(|m| m.slug().replace('z', "s").trim_end_matches('s') == s)
+    }
 }
 
 /// everything of a result except the images (those live in textures)
