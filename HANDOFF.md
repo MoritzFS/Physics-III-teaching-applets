@@ -411,3 +411,66 @@ rotators. Like the others it only draws with egui.
 - The owner's check on the Mac and in the browser.
 - Dragging the input point on the sphere and the clickable Jones rows were
   only reviewed in the code.
+
+## 11. Stat Phys Bench (2026-10-28)
+
+A second applet, `stat_phys_bench/`, deployed at
+`https://moritzfs.github.io/Physics-III-teaching-applets/stat-phys-bench/`.
+It follows the owner's notes *Partition functions: five worked examples*:
+one bench (tab) per example, each a small simulation in contact with a heat
+bath, with the notes' formulas drawn next to it. Its README is for students.
+
+**Decisions**
+- Its own crate, not a bench in Optics Bench: a different course topic, and
+  it needs no GPU compute. eframe uses **glow** (WebGL 2 in the browser), so it
+  runs in every current browser; no WebGPU check in `index.html`.
+- No eframe `persistence`: nothing goes into local storage, so the two apps
+  cannot clash on `egui_memory_ron` (see the follow-up in section 7). The
+  bench is chosen by the link (`#levels`, `#gas`, `#atoms`, `#classical`,
+  `#quantum`), and the app follows the address when it changes.
+- Requests from the owner: up to 20 levels and 1000 particles (draggable
+  levels); up to 50 particles in the gas, with distributions in v and E;
+  example 3 as a gas of two-level atoms; oscillators up to 10 000 modes,
+  drawn as masses on springs or as strings (fundamental mode); example 5
+  without ħ: steps E_n = n ε. The zero-point ε/2 is left out (the notes
+  have it); the notes in the app and the README say what that changes.
+- The baths, all with the Boltzmann distribution stationary:
+  - levels: Metropolis hops to a random box (symmetric proposal);
+  - gas: walls redraw the velocity (flux-weighted normal component) and the
+    internal state; hard-sphere collisions, time-stepped with substeps of a
+    quarter radius;
+  - example 3 collisions: one atom of the pair may change its level, paid by
+    K_n = m w²/4 along the line of centres; up with probability 1 if
+    K_n ≥ Δ, down with 1/g. w dw is preserved, so detailed balance holds;
+  - classical modes: exact Ornstein–Uhlenbeck step per frame;
+  - quantum modes: the birth–death process γ n̄ (n + 1) up, γ (n̄ + 1) n down,
+    sampled exactly over a frame (Kendall 1948), so any frame time works.
+- "C from the spread" (Var(E)/k_BT²) is shown on every bench as the
+  simulation's heat capacity.
+- egui's Ubuntu Light lacks ⟨ ⟩ ∝ → ⁻; the app appends egui's own Hack font
+  as a fallback for proportional text.
+- Formatted like Optics Bench (rustfmt with `max_width=160,
+  use_small_heuristics=Max`; there is no rustfmt.toml).
+
+**Verified** (cloud, Linux)
+- `cargo test --release`: 15 tests. They cover the two-level table and
+  Schottky peak (0.44 at 0.42 Δ), the rotor, the quantum table of the notes,
+  normalised f(v) and P(E) in 1–3 D, and that every bath reaches its
+  distribution: Metropolis occupations, equipartition at bath walls, 2D
+  collisions giving ⟨v⁴⟩/⟨v²⟩² = 2, the isolated two-level gas reaching the
+  excited fraction at its kinetic temperature (energy conserved to 1e-9),
+  and both oscillator baths (mean, C from the variance, P(0)).
+- `cargo clippy` (native and wasm32): no warnings.
+- Screenshots of the examples under Xvfb (glow on Mesa llvmpipe):
+  `xvfb-run -a -s "-screen 0 1600x1100x24" ./shot.sh out.png quantum 1`.
+- `trunk build --release` (wasm 4.9 MB). In headless Chromium (SwiftShader
+  WebGL): every `#bench` link opens its bench, changing the address switches
+  the bench, a click on a tab updates the address; no console errors.
+- Timing (native, one thread): 10 000 quantum modes at k_BT/ε = 25 take
+  about 3.6 ms per frame, the worst case; everything else is below 1 ms.
+
+**Not verified**
+- The owner's check on the Mac and in Safari/Chrome; `./bundle.sh` on macOS.
+- Mouse interaction beyond a tab click: dragging levels and turning the 3D
+  box were only reviewed in the code and the screenshots.
+- The frame rate in a real browser with 10 000 modes.

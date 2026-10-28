@@ -49,6 +49,7 @@
             border-radius: 10px;
             padding: 1.2rem 1.4rem;
         }
+        .applet + .applet { margin-top: 1.5rem; }
         .applet ul { margin: 0 0 0.9rem; padding-left: 1.2rem; }
         .open {
             display: inline-block;
@@ -97,6 +98,27 @@
         <a href="https://github.com/MoritzFS/Physics-III-teaching-applets/tree/main/optics_bench">How to use it</a>
         <p class="note">Each name above links straight to that bench. Needs a browser with WebGPU: Chrome or Edge,
             Safari 26 or newer, or Firefox with WebGPU. There is also a desktop app.</p>
+    </section>
+
+    <section class="applet">
+        <h2>Stat Phys Bench</h2>
+        <p>Partition functions in five examples: watch particles and modes in contact with a heat bath reach the
+            Boltzmann distribution, next to the formulas.</p>
+        <ul>
+            <li><strong><a href="stat-phys-bench/#levels">Boxes of fixed energy</a>:</strong> up to 20 levels and
+                1000 particles. Drag the levels and watch the particles follow; the Schottky peak of C.</li>
+            <li><strong><a href="stat-phys-bench/#gas">A gas in a box</a>:</strong> hard spheres in 1, 2 or 3
+                dimensions, walls that are a heat bath or insulating. Maxwell–Boltzmann speeds and ⟨E⟩ = d/2 k<sub>B</sub>T.</li>
+            <li><strong><a href="stat-phys-bench/#atoms">Two-level atoms</a>:</strong> the same gas with a ground and
+                an excited level. Z factorises, and C = 3/2 k<sub>B</sub> plus a bump.</li>
+            <li><strong><a href="stat-phys-bench/#classical">Classical oscillators</a>:</strong> masses on springs or
+                guitar strings, up to 10&nbsp;000 modes: equipartition, ⟨E⟩ = k<sub>B</sub>T whatever the frequency.</li>
+            <li><strong><a href="stat-phys-bench/#quantum">Quantum oscillators</a>:</strong> the same modes with
+                energy steps ε. They freeze out when k<sub>B</sub>T is small compared with ε.</li>
+        </ul>
+        <a class="open" href="stat-phys-bench/">Open Stat Phys Bench</a>
+        <a href="https://github.com/MoritzFS/Physics-III-teaching-applets/tree/main/stat_phys_bench">How to use it</a>
+        <p class="note">Runs in any current browser (WebGL 2). There is also a desktop app.</p>
     </section>
 
     <footer>

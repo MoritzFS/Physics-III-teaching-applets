@@ -27,12 +27,18 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
   - `src/worker.rs`: newest-request-only background work (in place on the web).
   - `src/lib.rs`, `src/main.rs`, `src/web.rs`: start-up and browser helpers.
   - `optics_bench/README.md` explains features and physics.
+- `stat_phys_bench/`: a second Rust app (egui/eframe with glow, so WebGL 2 in
+  the browser): the five partition-function examples as simulations with a
+  heat bath. See HANDOFF.md, section 11.
+  - `src/levels.rs`, `src/gas.rs`, `src/oscillators.rs`: physics and examples
+    (`*_ui.rs` next to each); `src/plot.rs`: the plots; `src/app.rs`: tabs.
+  - `./shot.sh out.png <bench> <example>` takes a screenshot (Xvfb works).
 - One folder per applet; the repo root holds the landing page and CI.
 
 ## Working on it
 
-- Build and test from `optics_bench/`: `cargo build --release`,
-  `cargo test --release`.
+- Build and test from `optics_bench/` (or `stat_phys_bench/`):
+  `cargo build --release`, `cargo test --release`.
   - The tests check the 4f physics and the saving format.
   - `tests/shader.rs` validates the WGSL with naga. Run it after every shader
     change.

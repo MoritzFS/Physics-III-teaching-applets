@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Stat Phys Bench</title>
+    <meta name="description" content="Partition functions in five examples: simulations in contact with a heat bath, next to the formulas.">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" href="data:,">
+
+    <!-- Trunk builds the Rust app (src/main.rs) and inserts the loader here -->
+    <link data-trunk rel="rust" data-bin="stat_phys_bench" data-wasm-opt="2" />
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1b1b1b;
+            color: #dcdcdc;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            touch-action: manipulation;
+        }
+        /* eframe sizes the drawing buffer from the canvas's CSS size */
+        #stat_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+        }
+        .message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-sizing: border-box;
+            width: min(36em, 100% - 32px);
+            text-align: center;
+            line-height: 1.5;
+        }
+        .message a { color: #8cb4ff; }
+        .detail { color: #8a8a8a; font-size: 0.85em; overflow-wrap: anywhere; }
+        #crashed { background: #1b1b1bee; padding: 8px 16px; border-radius: 8px; }
+        #stat_canvas[data-crashed] { opacity: 0.25; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <canvas id="stat_canvas"></canvas>
+
+    <div id="loading" class="message">Loading Stat Phys Bench…</div>
+
+    <!-- shown by src/main.rs when the app cannot start -->
+    <div id="no_webgl" class="message" hidden>
+        <p><strong>This app needs WebGL 2</strong>, which every current browser has. It may be switched off
+            (for example by hardware acceleration being disabled in the browser's settings). The desktop app works too.</p>
+        <p><a href="https://github.com/MoritzFS/Physics-III-teaching-applets/tree/main/stat_phys_bench">About
+            Stat Phys Bench and the desktop app</a></p>
+        <p class="detail" id="no_webgl_detail"></p>
+    </div>
+
+    <!-- shown by src/main.rs when the app panics -->
+    <div id="crashed" class="message" hidden>
+        <p><strong>Stat Phys Bench stopped with an error.</strong> Reloading the page usually helps.</p>
+        <p class="detail" id="crashed_detail"></p>
+    </div>
+</body>
+</html>

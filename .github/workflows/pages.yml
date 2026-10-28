@@ -28,7 +28,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: optics_bench
+          workspaces: |
+            optics_bench
+            stat_phys_bench
 
       # the sound output (cpal) needs the ALSA headers on Linux
       - name: System libraries for the native build
@@ -42,6 +44,13 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
 
+      - name: Stat Phys Bench tests (native)
+        working-directory: stat_phys_bench
+        run: cargo test --release
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+
       - uses: jetli/trunk-action@v0.5.1
         with:
           version: v0.21.14
@@ -49,6 +58,10 @@ jobs:
       - name: Build Optics Bench for the web
         working-directory: optics_bench
         run: trunk build --release --public-url /Physics-III-teaching-applets/optics-bench/ --dist ../_site/optics-bench
+
+      - name: Build Stat Phys Bench for the web
+        working-directory: stat_phys_bench
+        run: trunk build --release --public-url /Physics-III-teaching-applets/stat-phys-bench/ --dist ../_site/stat-phys-bench
 
       - name: Add the landing page
         run: cp site/index.html _site/
