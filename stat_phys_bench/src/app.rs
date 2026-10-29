@@ -3,6 +3,8 @@
 
 use eframe::egui;
 
+use crate::cavity::CavityPreset;
+use crate::cavity_ui::CavityUi;
 use crate::gas::{AtomPreset, GasPreset};
 use crate::gas_ui::GasUi;
 use crate::levels::LevelPreset;
@@ -17,10 +19,11 @@ pub enum Tab {
     Atoms,
     Classical,
     Quantum,
+    Cavity,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 5] = [Tab::Levels, Tab::Gas, Tab::Atoms, Tab::Classical, Tab::Quantum];
+    pub const ALL: [Tab; 6] = [Tab::Levels, Tab::Gas, Tab::Atoms, Tab::Classical, Tab::Quantum, Tab::Cavity];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -29,6 +32,7 @@ impl Tab {
             Tab::Atoms => "3 Two-level atoms",
             Tab::Classical => "4 Classical oscillators",
             Tab::Quantum => "5 Quantum oscillators",
+            Tab::Cavity => "6 Light in a box",
         }
     }
 
@@ -40,6 +44,7 @@ impl Tab {
             Tab::Atoms => "atoms",
             Tab::Classical => "classical",
             Tab::Quantum => "quantum",
+            Tab::Cavity => "cavity",
         }
     }
 
@@ -55,6 +60,7 @@ pub struct StatApp {
     atoms: GasUi,
     classical: OscUi,
     quantum: OscUi,
+    cavity: CavityUi,
     #[cfg(target_arch = "wasm32")]
     url_tab: Option<Tab>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -84,6 +90,7 @@ impl StatApp {
             atoms: GasUi::new(true),
             classical: OscUi::new(false),
             quantum: OscUi::new(true),
+            cavity: CavityUi::default(),
             #[cfg(target_arch = "wasm32")]
             url_tab: None,
             #[cfg(not(target_arch = "wasm32"))]
@@ -118,6 +125,7 @@ impl StatApp {
             Tab::Atoms => self.atoms.load_atom_preset(AtomPreset::ALL[pick(AtomPreset::ALL.len())]),
             Tab::Classical => self.classical.load_preset(OscPreset::CLASSICAL[pick(OscPreset::CLASSICAL.len())]),
             Tab::Quantum => self.quantum.load_preset(OscPreset::QUANTUM[pick(OscPreset::QUANTUM.len())]),
+            Tab::Cavity => self.cavity.load_preset(CavityPreset::ALL[pick(CavityPreset::ALL.len())]),
         }
     }
 
@@ -125,7 +133,7 @@ impl StatApp {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("Help", |ui| {
                 ui.set_max_width(440.0);
-                ui.label("Five benches, one for each example of the notes 'Partition functions: five worked examples'. Each runs a small simulation in contact with a heat bath (or isolated), shows the distribution it reaches, and puts the formulas of the notes next to it.");
+                ui.label("Six benches: one for each example of the notes 'Partition functions: five worked examples', and light in a box (lecture notes 4.6: cavity modes, Rayleigh–Jeans, Planck). Each runs a small simulation in contact with a heat bath (or isolated), shows the distribution it reaches, and puts the formulas of the notes next to it.");
                 ui.label("• Colours: white = the formula from the notes, blue = the simulation, orange = the current temperature, grey = the classical result for comparison.");
                 ui.label("• Energies and k_BT are measured in the same unit, which is arbitrary. Masses are in units of a reference mass, speeds in units of √(energy/mass).");
                 ui.label("• 'histograms' sets how long the histograms remember: only now, about 5 s, or about a minute. Few particles need a long memory.");
@@ -195,6 +203,7 @@ impl eframe::App for StatApp {
             Tab::Atoms => self.atoms.ui(ui),
             Tab::Classical => self.classical.ui(ui),
             Tab::Quantum => self.quantum.ui(ui),
+            Tab::Cavity => self.cavity.ui(ui),
         }
         self.debug_shot(&ui.ctx().clone());
     }

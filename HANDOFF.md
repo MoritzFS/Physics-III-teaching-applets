@@ -474,3 +474,15 @@ bath, with the notes' formulas drawn next to it. Its README is for students.
 - Mouse interaction beyond a tab click: dragging levels and turning the 3D
   box were only reviewed in the code and the screenshots.
 - The frame rate in a real browser with 10 000 modes.
+
+### 11b. Light in a box (2026-10-29)
+
+A sixth tab, `#cavity` (`cavity.rs`, `cavity_ui.rs`), after lecture notes
+4.6.1–4.6.2: the modes of a cube with conducting walls, k = (π/L)n. Points
+with all n_i ≥ 1 have two polarisations, with one n_i = 0 one, with two
+zeros none (the notes count all points twice, which is right for large k;
+the exact count is 2 % below π ε³/3 at |n| = 10). Energies in units of
+ε₁ = hc/2L. Modes up to |n| = 40 (66 880) are sorted by ε, so a cutoff is a
+prefix; each is stepped exactly like examples 4/5. Released in a hurry for a
+lecture: 18 tests pass, clippy is clean, screenshots of the tab were checked;
+the browser was not tested separately.

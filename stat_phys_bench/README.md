@@ -23,7 +23,7 @@ Colours everywhere: **white** = the formula from the notes, **blue** = the
 simulation, **orange** = the current temperature, **grey** = the classical
 result for comparison. Each bench has a menu of examples, each with notes.
 A link can open one bench directly: `…/stat-phys-bench/#levels`, `#gas`,
-`#atoms`, `#classical` or `#quantum`.
+`#atoms`, `#classical`, `#quantum` or `#cavity`.
 
 ## Run
 
@@ -137,6 +137,27 @@ removes one quantum at a time, with rates whose ratio is e^(−ε/k_BT).
   It is left out here. It shifts ⟨E⟩ by ε/2 and changes neither P(n) nor C.
   So hot, ⟨E⟩ → k_BT − ε/2 here, and k_BT in the notes.
 
+## 6 · Light in a box
+
+The electromagnetic modes of a cube with conducting walls (lecture notes
+4.6), each an oscillator as in examples 4 and 5. Energies are in units of
+ε₁ = hc/2L; a mode's quantum is ε = hν = ε₁|n|.
+
+* **The modes** are the points (n_x, n_y, n_z) of the positive octant (drag
+  to turn), coloured by their energy. Each has two polarisations, or one if
+  an n_i = 0. The outlined shell holds the modes between ε and ε + dε.
+* **Plots**: the density of states, counted mode by mode, against
+  g(ε) = π ε²/ε₁³ (= 8πν²V/c³); the energy per mode; the spectrum g(ε)⟨E⟩;
+  and the total energy of the modes below a cutoff.
+* **Continuous** mode energies: every mode holds k_BT (Rayleigh–Jeans), the
+  spectrum rises as ε², and the total energy grows as the cutoff cubed: the
+  ultraviolet catastrophe. **Quantised** (steps hν): the high modes freeze out
+  (Planck), the peak sits at 2.82 k_BT (Wien) and the total is π⁵(k_BT)⁴/15ε₁³
+  (Stefan–Boltzmann).
+* Modes up to |n| = 40 (about 67 000) are simulated, and the walls are the
+  bath. Here k_BT is a few ε₁; for L = 1 cm at room temperature it is about
+  400 ε₁, and g(ε) is smooth.
+
 ## Heat capacity from the spread
 
 Every bench also shows C *from the spread*: in equilibrium the energy of one
@@ -165,6 +186,7 @@ src/app.rs             the menu bar and the five benches
 src/levels.rs          example 1: levels, Z₁, Metropolis bath     (+ levels_ui.rs)
 src/gas.rs             examples 2 and 3: hard spheres, walls, two-level atoms (+ gas_ui.rs)
 src/oscillators.rs     examples 4 and 5: classical and quantum modes (+ oscillators_ui.rs)
+src/cavity.rs          example 6: the modes of a cavity, Rayleigh–Jeans and Planck (+ cavity_ui.rs)
 src/plot.rs            axes, curves and bars drawn with egui
 src/stats.rs           histograms and time traces
 src/rng.rs             the random number generator
