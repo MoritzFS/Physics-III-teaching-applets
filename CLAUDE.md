@@ -28,9 +28,10 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
   - `src/lib.rs`, `src/main.rs`, `src/web.rs`: start-up and browser helpers.
   - `optics_bench/README.md` explains features and physics.
 - `stat_phys_bench/`: a second Rust app (egui/eframe with glow, so WebGL 2 in
-  the browser): the five partition-function examples as simulations with a
-  heat bath. See HANDOFF.md, section 11.
-  - `src/levels.rs`, `src/gas.rs`, `src/oscillators.rs`: physics and examples
+  the browser): the five partition-function examples and light in a box
+  (cavity modes, Planck) as simulations with a heat bath. See HANDOFF.md,
+  section 11.
+  - `src/levels.rs`, `src/gas.rs`, `src/oscillators.rs`, `src/cavity.rs`: physics and examples
     (`*_ui.rs` next to each); `src/plot.rs`: the plots; `src/app.rs`: tabs.
   - `./shot.sh out.png <bench> <example>` takes a screenshot (Xvfb works).
 - One folder per applet; the repo root holds the landing page and CI.
