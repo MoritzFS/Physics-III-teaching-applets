@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Bench</title>
+    <meta name="description" content="Quantum wave mechanics in the browser: wave packets, measurement, tunnelling, the hydrogen atom and spin.">
+    <meta name="color-scheme" content="dark light">
+    <link rel="icon" href="data:,">
+
+    <!-- Trunk builds the full app (app/, bin quantum_bench) and inserts the loader here.
+         Release builds use the cargo profile "web" (LTO, one codegen unit). -->
+    <link data-trunk rel="rust" href="app/Cargo.toml" data-bin="quantum_bench" data-wasm-opt="2"
+          data-cargo-profile-release="web" />
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1b1b1b;
+            color: #dcdcdc;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            touch-action: manipulation;
+        }
+        /* eframe sizes the drawing buffer from the canvas's CSS size */
+        #qb_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+        }
+        .message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-sizing: border-box;
+            width: min(36em, 100% - 32px);
+            text-align: center;
+            line-height: 1.5;
+        }
+        .message a { color: #8cb4ff; }
+        .detail { color: #8a8a8a; font-size: 0.85em; overflow-wrap: anywhere; }
+        #crashed { background: #1b1b1bee; padding: 8px 16px; border-radius: 8px; }
+        #qb_canvas[data-crashed] { opacity: 0.25; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <canvas id="qb_canvas"></canvas>
+
+    <div id="loading" class="message">Loading Quantum Bench…</div>
+
+    <!-- shown by qb_core (web.rs) when no GPU adapter could be created (neither WebGPU nor WebGL2) -->
+    <div id="no_gpu" class="message" hidden>
+        <p><strong>Quantum Bench could not start the graphics.</strong> It needs WebGPU or WebGL2
+            (any current Chrome, Edge, Safari or Firefox). The desktop app works everywhere.</p>
+        <p class="detail" id="no_gpu_detail"></p>
+    </div>
+
+    <!-- shown by qb_core (web.rs) when the app panics -->
+    <div id="crashed" class="message" hidden>
+        <p><strong>Quantum Bench stopped with an error.</strong> Reloading the page usually helps.</p>
+        <p class="detail" id="crashed_detail"></p>
+    </div>
+</body>
+</html>

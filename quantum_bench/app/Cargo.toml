@@ -1,0 +1,18 @@
+[package]
+name = "quantum_bench"
+description = "Quantum Bench: the full app with all tabs"
+version.workspace = true
+edition.workspace = true
+
+# FROZEN: do not edit (see DEVELOPING.md).
+
+[[bin]]
+name = "quantum_bench"
+path = "src/main.rs"
+
+[dependencies]
+qb_core.workspace = true
+qb_wave1d.workspace = true
+qb_box2d.workspace = true
+qb_hydrogen.workspace = true
+qb_spin.workspace = true

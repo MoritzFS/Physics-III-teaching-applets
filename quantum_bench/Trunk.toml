@@ -1,0 +1,9 @@
+# Web build with Trunk (https://trunkrs.dev), run from this folder (the workspace root).
+#   trunk serve                  local test at http://127.0.0.1:8080
+#   trunk build --release        optimized build into dist/ (cargo profile "web": LTO, see Cargo.toml)
+# The GitHub Pages workflow adds e.g. --public-url /Physics-III-teaching-applets/quantum-bench/.
+# Deep links: …/#wave1d, #box2d, #hydrogen, #spin, or #wave1d/1 for a preset (0-based).
+
+[build]
+target = "index.html"
+dist = "dist"
