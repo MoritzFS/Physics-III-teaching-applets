@@ -81,7 +81,8 @@ pub struct EfieldScene {
 
 impl EfieldScene {
     pub fn new() -> Self {
-        let grid = Grid1D::new(-12.0, 12.0, 1024);
+        // a long cell for a fine momentum grid (dp = 2π/80 ≈ 0.08): smooth |Φ(p)|²
+        let grid = Grid1D::new(-40.0, 40.0, 2048);
         let old = Arc::new(EigenBasis::harmonic(grid, LEVELS, 1.0, 0.0));
         let xs = grid.xs();
         let exp = EigenExpansion::from_coeffs(old.clone(), &[c64(1.0, 0.0)]);
@@ -767,7 +768,7 @@ impl Scene for EfieldScene {
 
 const NOTES: &str = "\
 # The exercise
-A charged oscillator (frequency ω, charge q) in a uniform field E: H' = −qEx̂ = −λħω ξ̂ with ξ = √(mω/ħ) x = (â† + â)/√2 and λ = (qE/ω)/√(mħω). Here ξ is the horizontal axis and energies are in units of ħω.
+A charged oscillator (frequency ω, charge q) in a uniform field E: H' = −qE·x = −λħω·ξ (as operators) with ξ = √(mω/ħ) x = (â† + â)/√2 and λ = (qE/ω)/√(mħω). Here ξ is the horizontal axis and energies are in units of ħω.
 - (a) A constant energy offset C only multiplies ψ by the global phase e^(−iCt/ħ): no force, no change in any probability or expectation value (toggle it below: the colours change, nothing else).
 - (b) First order: Eₙ⁽¹⁾ = ⟨n|H'|n⟩ = 0, the levels do not move. (Second order gives −λ²/2 for every level, which is already exact.)
 - (c) ψₙ⁽¹⁾ = ψₙ + λ√((n+1)/2) ψₙ₊₁ − λ√(n/2) ψₙ₋₁ (dashed on the selected level).
