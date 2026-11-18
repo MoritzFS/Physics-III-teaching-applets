@@ -1,0 +1,3 @@
+[build]
+# iCloud must not sync the build output
+target-dir = "target.nosync"

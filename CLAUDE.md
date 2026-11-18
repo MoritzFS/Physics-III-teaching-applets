@@ -34,6 +34,11 @@ The current task is in **HANDOFF.md**: port `optics_bench/` to the web
   - `src/levels.rs`, `src/gas.rs`, `src/oscillators.rs`, `src/cavity.rs`: physics and examples
     (`*_ui.rs` next to each); `src/plot.rs`: the plots; `src/app.rs`: tabs.
   - `./shot.sh out.png <bench> <example>` takes a screenshot (Xvfb works).
+- `quantum_bench/`: a third Rust app, a cargo workspace (egui/eframe + wgpu,
+  WebGPU with WebGL 2 fallback): quantum wave mechanics for problem sets 9–13.
+  `crates/qb_core` holds the shell, numerics and widgets; one crate per tab
+  (`qb_wave1d`, `qb_box2d`, `qb_hydrogen`, `qb_spin`), each with a solo binary.
+  Read `quantum_bench/DEVELOPING.md` before changing it.
 - One folder per applet; the repo root holds the landing page and CI.
 
 ## Working on it

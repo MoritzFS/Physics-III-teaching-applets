@@ -1,0 +1,5 @@
+target.nosync/
+target/
+dist/
+shots/*.state/
+shots/

@@ -1,0 +1,30 @@
+[package]
+name = "qb_box2d"
+description = "Quantum Bench tab: particle in a 2D box (PS09 38)"
+version.workspace = true
+edition.workspace = true
+
+# FROZEN: do not edit (see DEVELOPING.md). Every dependency a tab may need is here.
+
+[[bin]]
+name = "box2d_solo"
+path = "src/bin/box2d_solo.rs"
+
+[dependencies]
+qb_core.workspace = true
+eframe.workspace = true
+bytemuck.workspace = true
+glam.workspace = true
+num-complex.workspace = true
+rustfft.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+web-time.workspace = true
+
+# Native only: any direct use must be cfg-gated; prefer qb_core::par, which works on the web too.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon.workspace = true
+
+[dev-dependencies]
+naga.workspace = true
