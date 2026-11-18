@@ -15,9 +15,16 @@ Tabs: **1D waves**, **2D box**, **Hydrogen**, **Spin**. Each tab has an
 "Examples" menu with one entry per exercise (e.g. "PS10 38 · Gaussian wave
 packet") and notes on what the exercise asks and what to try.
 
-Status: the foundation (shell, numerics, widgets) and the reference scene
-"PS10 38 · Gaussian wave packet" (plus a moving packet k₀ = 3 shown as Re ψ)
-are done; the other tabs are placeholders.
+| tab | examples |
+|---|---|
+| **1D waves** | PS10 38 Gaussian wave packet (also as a moving wave, Re ψ) · PS09 36 decaying particle (complex potential) · PS09 37 truncated plane wave in x and p · PS10 39 barrier tunnelling, T(E) and resonances · PS10 40 harmonic oscillator and coherent states · PS10 41 draw your own potential (Numerov) · PS12 49 oscillator in an electric field |
+| **2D box** | PS09 38 eigenstates and degeneracy, sloshing and circulating superpositions, a Gaussian packet and its revival |
+| **Hydrogen** | PS11 43 quantum numbers and ladder operators · PS11 44 energy and radius · PS11 45 ψ₂₁₁ and ψ₂₁₋₁ · 1s + 2p oscillating dipole · PS12 47 Zeeman effect; with a 3D density view (cloud, isosurface, point cloud, cut plane) |
+| **Spin** | PS09 35 non-commuting observables · PS13 50 Stern–Gerlach sequences · PS13 51 Larmor precession and the Ramsey sequence |
+
+Every scene shows the time evolution, the energy eigenstates and what a
+measurement does: a single shot collapses the state, which then keeps
+evolving; "repeat N" compares many shots with the Born rule.
 
 ## Run
 
