@@ -96,7 +96,8 @@ pub struct OscillatorScene {
 
 impl OscillatorScene {
     pub fn new(preset: OscPreset) -> Self {
-        let grid = Grid1D::new(-16.0, 16.0, 1024);
+        // a long cell for a fine momentum grid (dp = 2π/96 ≈ 0.065): smooth |Φ(p)|²
+        let grid = Grid1D::new(-48.0, 48.0, 2048);
         let basis = Arc::new(EigenBasis::harmonic(grid, LEVELS, 1.0, 0.0));
         let xs = grid.xs();
         let v = xs.iter().map(|x| 0.5 * x * x).collect();

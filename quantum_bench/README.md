@@ -17,7 +17,7 @@ packet") and notes on what the exercise asks and what to try.
 
 | tab | examples |
 |---|---|
-| **1D waves** | PS10 38 Gaussian wave packet (also as a moving wave, Re ψ) · PS09 36 decaying particle (complex potential) · PS09 37 truncated plane wave in x and p · PS10 39 barrier tunnelling, T(E) and resonances · PS10 40 harmonic oscillator and coherent states · PS10 41 draw your own potential (Numerov) · PS12 49 oscillator in an electric field |
+| **1D waves** | PS10 38 Gaussian wave packet (also as a moving wave, Re ψ) · PS09 36 decaying particle (complex potential) · PS09 37 truncated plane wave in x and p · PS10 39 barrier tunnelling, T(E) and resonances · PS10 40 harmonic oscillator and coherent states · ladder operators â, â† acting on the state, with the Fock-state populations (script 6.8) · PS10 41 draw your own potential (Numerov) · PS12 49 oscillator in an electric field |
 | **2D box** | PS09 38 eigenstates and degeneracy, sloshing and circulating superpositions, a Gaussian packet and its revival |
 | **Hydrogen** | PS11 43 quantum numbers and ladder operators · PS11 44 energy and radius · PS11 45 ψ₂₁₁ and ψ₂₁₋₁ · 1s + 2p oscillating dipole · PS12 47 Zeeman effect; with a 3D density view (cloud, isosurface, point cloud, cut plane) |
 | **Spin** | PS09 35 non-commuting observables · PS13 50 Stern–Gerlach sequences · PS13 51 Larmor precession and the Ramsey sequence |

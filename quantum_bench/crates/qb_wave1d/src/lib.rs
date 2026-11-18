@@ -1,4 +1,4 @@
-//! Quantum Bench tab "1D waves": one scene per exercise (PS09 36/37, PS10 38–41, PS12 49).
+//! Quantum Bench tab "1D waves": one scene per exercise (PS09 36/37, PS10 38–41, PS12 49, script 6.8).
 //!
 //! Each preset of the "Examples" menu builds its own [`qb_core::Scene`];
 //! [`gaussian::GaussianScene`] (PS10 38) is the reference scene to copy from.
@@ -10,6 +10,7 @@ pub mod decay;
 pub mod draw;
 pub mod efield;
 pub mod gaussian;
+pub mod ladder;
 pub mod oscillator;
 pub mod physics;
 pub mod truncated;
@@ -70,6 +71,18 @@ impl Wave1dTab {
             })
             .preset(PresetInfo::new("PS12 49 · Oscillator in an electric field"), |_| {
                 Box::new(efield::EfieldScene::new())
+            })
+            .preset(PresetInfo::new("Script 6.8 · Ladder operators: climb from |0⟩").paused(), |_| {
+                Box::new(ladder::LadderScene::new(ladder::LadderPreset::Ground))
+            })
+            .preset(PresetInfo::new("Script 6.8 · Ladder operators: |3⟩").paused(), |_| {
+                Box::new(ladder::LadderScene::new(ladder::LadderPreset::Three))
+            })
+            .preset(PresetInfo::new("Script 6.8 · Ladder operators: coherent α = 1.5"), |_| {
+                Box::new(ladder::LadderScene::new(ladder::LadderPreset::Coherent))
+            })
+            .preset(PresetInfo::new("Script 6.8 · Ladder operators: (|0⟩ + |1⟩)/√2"), |_| {
+                Box::new(ladder::LadderScene::new(ladder::LadderPreset::Superposition))
             })
     }
 }
