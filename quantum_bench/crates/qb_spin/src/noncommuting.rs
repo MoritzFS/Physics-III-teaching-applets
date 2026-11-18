@@ -128,6 +128,8 @@ pub struct NonCommutingScene {
     beta: f64,
     /// angle of the prepared start state χ from φ₁ (radians)
     prep: f64,
+    /// start (and reset) in ψ₁, as after part a) of the exercise, instead of in χ
+    start_psi1: bool,
     state: [f64; 2],
     last: Option<Obs>,
     log: Vec<LogEntry>,
@@ -148,6 +150,7 @@ impl NonCommutingScene {
         let mut s = NonCommutingScene {
             beta: beta_345(),
             prep: 75f64.to_radians(),
+            start_psi1: true,
             state: [0.0, 1.0],
             last: None,
             log: vec![],
@@ -160,7 +163,16 @@ impl NonCommutingScene {
         s
     }
 
+    /// Back to the chosen start state: ψ₁ (the exercise) or the prepared χ.
     fn restart(&mut self) {
+        if self.start_psi1 {
+            self.set_psi1();
+        } else {
+            self.set_chi();
+        }
+    }
+
+    fn set_chi(&mut self) {
         self.state = [self.prep.cos(), self.prep.sin()];
         self.last = None;
         self.log.clear();
@@ -457,12 +469,12 @@ impl NonCommutingScene {
             ),
         );
         if stage == 0 && self.log.last().is_some_and(|e| e.obs == Obs::A && e.k == 1) {
-            ui.label(RichText::new("A gave a₂: the exercise assumes a₁. Press \"Start at ψ₁\" or measure on.").color(look.weak_text()));
+            ui.label(RichText::new("A gave a₂: the exercise assumes a₁. Press R to start again in ψ₁, or measure on.").color(look.weak_text()));
         }
         ui.add_space(look.px(6.0));
         ui.label(RichText::new("Your outcomes").strong());
         if self.log.is_empty() {
-            ui.label(RichText::new("none yet: press M (A, B, A, … in turn)").color(look.weak_text()));
+            ui.label(RichText::new("none yet: press M (A, B, A, … in turn). The start state χ is not part of the exercise.").color(look.weak_text()));
         }
         let skip = self.log.len().saturating_sub(7);
         for (i, e) in self.log.iter().enumerate().skip(skip) {
@@ -609,7 +621,14 @@ impl Scene for NonCommutingScene {
             }
             "measure_a" => self.measure(Obs::A, ctx),
             "measure_b" => self.measure(Obs::B, ctx),
-            "psi1" => self.set_psi1(),
+            "psi1" => {
+                self.start_psi1 = true;
+                self.restart();
+            }
+            "chi" => {
+                self.start_psi1 = false;
+                self.restart();
+            }
             // end the collapse animation (this scene's clock does not move, so a screenshot
             // would always catch it a quarter second in)
             "settle" => {
@@ -633,6 +652,7 @@ impl Scene for NonCommutingScene {
                     return false;
                 };
                 self.prep = v.to_radians();
+                self.start_psi1 = false;
                 self.restart();
             }
             _ => return false,
@@ -745,14 +765,17 @@ impl Scene for NonCommutingScene {
             .changed()
         {
             self.prep = p.to_radians();
+            self.start_psi1 = false;
             self.restart();
         }
         ui.horizontal(|ui| {
-            if ui.button("Start at χ").clicked() {
+            if ui.selectable_label(self.start_psi1, "ψ₁ (after a₁, the exercise)").clicked() {
+                self.start_psi1 = true;
                 self.restart();
             }
-            if ui.button("Start at ψ₁ (after a₁)").clicked() {
-                self.set_psi1();
+            if ui.selectable_label(!self.start_psi1, "χ (any state)").clicked() {
+                self.start_psi1 = false;
+                self.restart();
             }
         });
 
@@ -808,7 +831,8 @@ With real amplitudes a two-state system is a plane: the state is a unit vector, 
 - Bloch sphere: φ₁ and φ₂ are the poles. Angles double there, so orthogonal states sit opposite each other and P = cos²(angle/2).
 
 # Try
-- Press M three times: A (collapse onto ψ₁ or ψ₂), B, A again. The walk on the right follows the exercise.
+- The scene starts in ψ₁, right after A gave a₁ (part a). Press M: B is measured, b₁ with 9/25 and b₂ with 16/25. Press M again: A, and a₁ comes back with 9/25 after b₁ or 16/25 after b₂. R starts again in ψ₁.
+- Start state χ (side panel): any other state, to see the first A measurement collapse it onto ψ₁ or ψ₂.
 - Repeat the sequence N = 10 000 times: the tree shows the four paths with 81, 144, 256 and 144 out of 625, and a₁ at the end → 337/625.
 - Change β: P(a₁ again) = cos⁴β + sin⁴β = 1 − ½ sin²2β. It is 1 only for β = 0° or 90° (same eigenbasis: commuting observables) and smallest, 1/2, at 45°.
 - Measure A twice in a row: the second result always repeats the first.
