@@ -446,6 +446,14 @@ impl<'a> EnergyView<'a> {
     }
 }
 
+/// Width for a plot stacked under an [`EnergyView`] with a ladder of width
+/// `ladder_width` (x + p view), so that both plot frames have the same width and
+/// left edge; the strip beside it under the ladder stays empty.
+pub fn width_beside_ladder(ui: &egui::Ui, ladder_width: f32) -> f32 {
+    let look = Look::of(ui);
+    (ui.available_width() - ladder_width - look.px(6.0)).max(100.0)
+}
+
 /// Subscript digits for level labels: 12 → "₁₂".
 pub fn subscript(n: usize) -> String {
     const D: [char; 10] = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];

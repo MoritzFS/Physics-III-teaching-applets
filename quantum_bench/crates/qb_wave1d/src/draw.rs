@@ -24,6 +24,8 @@ const CX_MIN: f64 = -20.0;
 const CX_MAX: f64 = 20.0;
 const NC: usize = 2001;
 const LEVELS: usize = 14;
+/// width of the level ladder beside the x plot (nominal points)
+const LADDER_W: f32 = 220.0;
 /// dx = 0.1 and dt ≤ 0.01: small enough kinetic phase per step for sharp drawn edges.
 const DT_MAX: f64 = 0.01;
 
@@ -596,7 +598,7 @@ impl DrawScene {
             coeffs: basis.as_ref().map(|_| coeffs.as_slice()),
             labels: Some(&self.labels),
             selected,
-            ladder_width: look.px(220.0),
+            ladder_width: look.px(LADDER_W),
             curves,
             markers: vec![],
             drawable: true,
@@ -638,14 +640,18 @@ impl DrawScene {
     fn plot_p(&mut self, ui: &mut egui::Ui, height: f32) {
         grow_top(&mut self.top_p, common::peak_density(&self.mom.phi));
         let (lo, hi) = self.style.y_range(self.top_p);
-        let resp = WavePlot::new("draw_p")
+        let mut plot = WavePlot::new("draw_p")
             .domain(Domain::Momentum)
             .style(self.style)
             .x_range(-5.0, 5.0)
             .y_range(lo, hi)
             .height(height)
-            .curve(WaveCurve::new(&self.mom.p, &self.mom.phi))
-            .show(ui);
+            .curve(WaveCurve::new(&self.mom.p, &self.mom.phi));
+        // under the x plot with its ladder: same frame width and left edge
+        if self.view == ReprView::Both && self.basis.is_some() {
+            plot = plot.width(common::width_beside_ladder(ui, Look::of(ui).px(LADDER_W)));
+        }
+        let resp = plot.show(ui);
         self.flash.paint(ui, &resp.transform, Domain::Momentum);
     }
 
@@ -949,7 +955,25 @@ impl Scene for DrawScene {
                 "# This preset: a potential step\nV = 0 for x < 0, V = 1 for x > 0, packet with E ≈ 1.5 > V. Even above the step part of the packet is reflected: T(E) = 4k₁k₂/(k₁ + k₂)² with k₁ = √(2E), k₂ = √(2(E − V)). Below the step (E < V) T = 0, but the wave penetrates a little into the step.\n- Try: the ramp shape: a smooth step reflects much less at the same energies.\n\n"
             }
         };
-        format!("{intro}{NOTES}")
+        // the preset text below is about the preset's potential: say so when V is now something else
+        let preset_shape = match self.preset {
+            DrawPreset::DoubleWell => Shape::DoubleWell,
+            DrawPreset::DoubleBarrier => Shape::DoubleBarrier,
+            DrawPreset::Step => Shape::Step,
+        };
+        let current = match self.shape {
+            Some(s) if s == preset_shape => String::new(),
+            Some(s) => format!(
+                "# Current potential: {} (quick shape)\nThe preset section below describes the {}; the exercise and the rest apply to any V.\n\n",
+                s.label(),
+                preset_shape.label()
+            ),
+            None => format!(
+                "# Current potential: hand-drawn\nThe preset section below describes the {}; the exercise and the rest apply to any V.\n\n",
+                preset_shape.label()
+            ),
+        };
+        format!("{current}{intro}{NOTES}")
     }
 }
 

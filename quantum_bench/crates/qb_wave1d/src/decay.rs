@@ -51,6 +51,8 @@ impl Well {
 const BOX_HALF: f64 = 6.0;
 const BOX_WALL: f64 = 80.0;
 const LEVELS: usize = 30;
+/// width of the level ladder beside the x plot (nominal points)
+const LADDER_W: f32 = 170.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Init {
@@ -365,7 +367,7 @@ impl DecayScene {
                 Init::Level(n) => Some(n),
                 Init::Packet => None,
             },
-            ladder_width: look.px(170.0),
+            ladder_width: look.px(LADDER_W),
             curves,
             markers: vec![],
             drawable: false,
@@ -381,14 +383,18 @@ impl DecayScene {
     fn plot_p(&mut self, ui: &mut egui::Ui, height: f32) {
         grow_top(&mut self.top_p, common::peak_density(&self.mom.phi));
         let (lo, hi) = self.style.y_range(self.top_p);
-        let resp = WavePlot::new("decay_p")
+        let mut plot = WavePlot::new("decay_p")
             .domain(Domain::Momentum)
             .style(self.style)
             .x_range(-6.0, 6.0)
             .y_range(lo, hi)
             .height(height)
-            .curve(WaveCurve::new(&self.mom.p, &self.mom.phi))
-            .show(ui);
+            .curve(WaveCurve::new(&self.mom.p, &self.mom.phi));
+        // under the x plot with its ladder: same frame width and left edge
+        if self.view == ReprView::Both && self.basis.is_some() {
+            plot = plot.width(common::width_beside_ladder(ui, Look::of(ui).px(LADDER_W)));
+        }
+        let resp = plot.show(ui);
         self.flash.paint(ui, &resp.transform, Domain::Momentum);
     }
 

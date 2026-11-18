@@ -24,6 +24,8 @@ use crate::common::{self, EnergyView, LevelCurve, Repeated, grow_top, hint, sect
 use crate::physics::{number_state_product, poisson};
 
 const LEVELS: usize = 60;
+/// width of the level ladder beside the x plot (nominal points)
+const LADDER_W: f32 = 230.0;
 const SAMPLE_DT: f64 = 0.05;
 
 /// The presets of this scene.
@@ -387,7 +389,7 @@ impl OscillatorScene {
             coeffs: Some(&coeffs),
             labels: Some(&self.labels),
             selected: self.selected,
-            ladder_width: look.px(230.0),
+            ladder_width: look.px(LADDER_W),
             curves,
             markers: vec![],
             drawable: false,
@@ -521,14 +523,18 @@ impl OscillatorScene {
         grow_top(&mut self.top_p, common::peak_density(&mom.phi));
         let (lo, hi) = self.style.y_range(self.top_p);
         let w = (2.0 * self.e_top()).sqrt().max(5.0) + 0.5;
-        let resp = WavePlot::new("osc_p")
+        let mut plot = WavePlot::new("osc_p")
             .domain(Domain::Momentum)
             .style(self.style)
             .x_range(-w, w)
             .y_range(lo, hi)
             .height(height)
-            .curve(WaveCurve::new(&mom.p, &mom.phi))
-            .show(ui);
+            .curve(WaveCurve::new(&mom.p, &mom.phi));
+        // under the x plot with its ladder: same frame width and left edge
+        if self.view == ReprView::Both {
+            plot = plot.width(common::width_beside_ladder(ui, Look::of(ui).px(LADDER_W)));
+        }
+        let resp = plot.show(ui);
         if !matches!(self.flash.kind(), Some(FlashKind::Level { .. })) {
             self.flash.paint(ui, &resp.transform, Domain::Momentum);
         }

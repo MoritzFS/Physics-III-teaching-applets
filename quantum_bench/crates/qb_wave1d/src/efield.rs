@@ -24,6 +24,8 @@ use crate::common::{self, EnergyView, LevelCurve, Repeated, grow_top, hint, sect
 use crate::physics::{first_order_energy, first_order_mean_xi, first_order_state, second_order_energy, shifted_energy};
 
 const LEVELS: usize = 40;
+/// width of the level ladder beside the x plot (nominal points)
+const LADDER_W: f32 = 220.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Start {
@@ -346,7 +348,7 @@ impl EfieldScene {
             coeffs: Some(&coeffs),
             labels: Some(&self.labels),
             selected: Some(n),
-            ladder_width: look.px(220.0),
+            ladder_width: look.px(LADDER_W),
             curves,
             markers: vec![],
             drawable: false,
@@ -435,14 +437,18 @@ impl EfieldScene {
         let mom = self.wave.momentum();
         grow_top(&mut self.top_p, common::peak_density(&mom.phi));
         let (lo, hi) = self.style.y_range(self.top_p);
-        let resp = WavePlot::new("efield_p")
+        let mut plot = WavePlot::new("efield_p")
             .domain(Domain::Momentum)
             .style(self.style)
             .x_range(-5.5, 5.5)
             .y_range(lo, hi)
             .height(height)
-            .curve(WaveCurve::new(&mom.p, &mom.phi))
-            .show(ui);
+            .curve(WaveCurve::new(&mom.p, &mom.phi));
+        // under the x plot with its ladder: same frame width and left edge
+        if self.view == ReprView::Both {
+            plot = plot.width(common::width_beside_ladder(ui, Look::of(ui).px(LADDER_W)));
+        }
+        let resp = plot.show(ui);
         if !matches!(self.flash.kind(), Some(FlashKind::Level { .. })) {
             self.flash.paint(ui, &resp.transform, Domain::Momentum);
         }
