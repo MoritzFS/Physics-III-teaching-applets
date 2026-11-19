@@ -2,8 +2,8 @@
 //!
 //! Three linked panels: the wavefunction ψ(x, t) in the potential (x / p),
 //! a bar chart of the Fock populations |cₙ|² coloured by arg cₙ, and an
-//! operator panel whose buttons apply â, â†, N̂ = â†â, x̂, p̂ to the current
-//! state (phases included), show the norm of the result and renormalise.
+//! operator panel whose buttons apply â, â†, N̂ = â†â and the unitary e^(iq̂), e^(ip̂) (q̂ = x̂) to the
+//! current state (phases included), show the norm of the result and renormalise.
 //! Units ħ = m = ω = 1, so the script's χ = √(mω/ħ) x is x here and
 //! â = (∂/∂χ + χ)/√2, â† = (−∂/∂χ + χ)/√2, H = ħω(â†â + ½).
 
@@ -73,6 +73,39 @@ pub fn momentum(c: &[C64]) -> (Vec<C64>, f64) {
     (up.iter().zip(&down).map(|(a, b)| (a - b) * s).collect(), 0.5 * lost)
 }
 
+/// e^(iĜ) c for Ĝ = x̂ ([`position`]) or p̂ ([`momentum`]): the unitary displacement
+/// operators D(i/√2) = e^(ix̂) (momentum kick, ψ → e^(ix)ψ) and D(−1/√2) = e^(ip̂)
+/// (shift, ψ(x) → ψ(x + 1)). Worked out on a basis padded by 80 levels (8 Taylor
+/// steps of e^(iĜ/8)), then cut back to c.len(); returns the dropped norm² too.
+pub fn exp_i(c: &[C64], generator: fn(&[C64]) -> (Vec<C64>, f64)) -> (Vec<C64>, f64) {
+    const PAD: usize = 80;
+    const STEPS: usize = 8;
+    let n = c.len();
+    let mut v: Vec<C64> = c.to_vec();
+    v.resize(n + PAD, c64(0.0, 0.0));
+    let f = c64(0.0, 1.0 / STEPS as f64);
+    for _ in 0..STEPS {
+        let mut term = v.clone();
+        for k in 1..=40 {
+            let (g, _) = generator(&term);
+            term = g.iter().map(|z| z * f / k as f64).collect();
+            v.iter_mut().zip(&term).for_each(|(a, b)| *a += b);
+            if norm2(&term) < 1e-34 {
+                break;
+            }
+        }
+    }
+    let lost = v[n..].iter().map(|z| z.norm_sqr()).sum();
+    v.truncate(n);
+    (v, lost)
+}
+
+/// ⟨x⟩ = √2 Re⟨â⟩ and ⟨p⟩ = √2 Im⟨â⟩.
+pub fn mean_xp(c: &[C64]) -> (f64, f64) {
+    let (a, _) = lowering_eigen_check(c);
+    (std::f64::consts::SQRT_2 * a.re, std::f64::consts::SQRT_2 * a.im)
+}
+
 /// Σ|cₙ|².
 pub fn norm2(c: &[C64]) -> f64 {
     c.iter().map(|z| z.norm_sqr()).sum()
@@ -136,8 +169,10 @@ pub enum Op {
     Lower,
     Raise,
     Number,
-    X,
-    P,
+    /// e^(iq̂): momentum kick by ħ·√(mω/ħ) (q̂ is the position operator x̂)
+    ExpIQ,
+    /// e^(ip̂): shift by −√(ħ/mω)
+    ExpIP,
 }
 
 impl Op {
@@ -145,10 +180,10 @@ impl Op {
         match self {
             Op::Lower => "â",
             Op::Raise => "â†",
-            // (egui does not draw combining accents: N̂ is written â†â, the hats of x̂, p̂ are painted on the buttons)
+            // (egui does not draw combining accents: N̂ is written â†â, q̂ and p̂ lose their hats)
             Op::Number => "â†â",
-            Op::X => "x",
-            Op::P => "p",
+            Op::ExpIQ => "exp(iq)",
+            Op::ExpIP => "exp(ip)",
         }
     }
 }
@@ -343,9 +378,12 @@ impl LadderScene {
             Op::Lower => (lower(&c), 0.0),
             Op::Raise => raise(&c),
             Op::Number => (number(&c), 0.0),
-            Op::X => position(&c),
-            Op::P => momentum(&c),
+            Op::ExpIQ => exp_i(&c, position),
+            Op::ExpIP => exp_i(&c, momentum),
         };
+        let (x0, p0) = mean_xp(&c);
+        let (x1, p1) = mean_xp(&r);
+        let n_after = n_stats(&r).0;
         let norm = norm2(&r).sqrt();
         let sym = op.symbol();
         if norm < 1e-10 {
@@ -368,10 +406,12 @@ impl LadderScene {
             (Op::Lower, Some(n)) => format!("â|{n}⟩ = √{n} |{}⟩   (‖âψ‖ = {norm:.4})", n - 1),
             (Op::Raise, Some(n)) if n + 1 < LEVELS => format!("â†|{n}⟩ = √{} |{}⟩   (‖â†ψ‖ = {norm:.4})", n + 1, n + 1),
             (Op::Number, Some(n)) => format!("â†â|{n}⟩ = {n}|{n}⟩: the same state (eigenvalue {n})"),
-            (Op::X, Some(0)) => format!("x|0⟩ = |1⟩/√2   (‖xψ‖ = {norm:.4})"),
-            (Op::X, Some(n)) => format!("x|{n}⟩ = (√{n} |{}⟩ + √{} |{}⟩)/√2   (‖xψ‖ = {norm:.4})", n - 1, n + 1, n + 1),
-            (Op::P, Some(0)) => format!("p|0⟩ = i|1⟩/√2   (‖pψ‖ = {norm:.4})"),
-            (Op::P, Some(n)) => format!("p|{n}⟩ = i(√{} |{}⟩ − √{n} |{}⟩)/√2   (‖pψ‖ = {norm:.4})", n + 1, n + 1, n - 1),
+            (Op::ExpIQ, Some(0)) => format!(
+                "exp(iq)|0⟩ = |α = i/√2⟩: a coherent state (Poisson bars, ⟨n⟩ = ½). Momentum kick: ⟨p⟩ 0 → {p1:.3}, |ψ(x)|² unchanged (‖·‖ = {norm:.4}, unitary)"
+            ),
+            (Op::ExpIP, Some(0)) => format!(
+                "exp(ip)|0⟩ = |α = −1/√2⟩: a coherent state (Poisson bars, ⟨n⟩ = ½). Shift: ⟨x⟩ 0 → {x1:.3}, |Φ(p)|² unchanged (‖·‖ = {norm:.4}, unitary)"
+            ),
             (Op::Lower, None) if res < 1e-6 => format!(
                 "âψ = αψ with α = {}: an eigenstate of â (coherent state). After normalising only the global phase arg α = {:.2} rad is new; |ψ|² is unchanged.",
                 fmt_alpha(alpha),
@@ -384,8 +424,12 @@ impl LadderScene {
             ),
             (Op::Raise, _) => format!("‖â†ψ‖ = {norm:.4} = √(⟨n⟩ + 1) with ⟨n⟩ = {n_mean:.4} before"),
             (Op::Number, _) => format!("‖â†âψ‖ = {norm:.4} = √⟨n²⟩: each cₙ multiplied by n (the |0⟩ part is removed)"),
-            (Op::X, _) => format!("‖xψ‖ = {norm:.4} = √⟨x²⟩"),
-            (Op::P, _) => format!("‖pψ‖ = {norm:.4} = √⟨p²⟩"),
+            (Op::ExpIQ, _) => format!(
+                "exp(iq)ψ = e^(ix)ψ(x): momentum kick, ⟨p⟩ {p0:.3} → {p1:.3}, |ψ(x)|² unchanged; ⟨n⟩ {n_mean:.3} → {n_after:.3} (‖·‖ = {norm:.4}, unitary)"
+            ),
+            (Op::ExpIP, _) => format!(
+                "exp(ip)ψ = ψ(x + 1): shift, ⟨x⟩ {x0:.3} → {x1:.3}, |Φ(p)|² unchanged; ⟨n⟩ {n_mean:.3} → {n_after:.3} (‖·‖ = {norm:.4}, unitary)"
+            ),
         };
         self.result = text;
         self.set_now(&r);
@@ -397,7 +441,7 @@ impl LadderScene {
         if let Some(ctx) = ctx {
             if lost > 1e-12 {
                 ctx.set_status(format!(
-                    "{sym}: the basis ends at n = {}; a part of norm² {lost:.2e} would go to n = {LEVELS} and was dropped (truncation).",
+                    "{sym}: the basis ends at n = {}; a part of norm² {lost:.2e} would go to n ≥ {LEVELS} and was dropped (truncation).",
                     LEVELS - 1
                 ));
             } else {
@@ -756,19 +800,16 @@ impl LadderScene {
                     (Op::Lower, "annihilation operator â = (∂/∂χ + χ)/√2: â|n⟩ = √n |n−1⟩"),
                     (Op::Raise, "creation operator â† = (−∂/∂χ + χ)/√2: â†|n⟩ = √(n+1) |n+1⟩"),
                     (Op::Number, "number operator N = â†â: â†â|n⟩ = n|n⟩"),
-                    (Op::X, "position operator x = √(ħ/2mω)(â† + â) (script 6.230)"),
-                    (Op::P, "momentum operator p = i√(mħω/2)(â† − â) (script 6.231)"),
+                    (
+                        Op::ExpIQ,
+                        "e^(iq): q is the position operator x = √(ħ/2mω)(â† + â) (script 6.230), in units of √(ħ/mω). Unitary: ψ(x) → e^(ix)ψ(x), a momentum kick ⟨p⟩ → ⟨p⟩ + 1",
+                    ),
+                    (
+                        Op::ExpIP,
+                        "e^(ip): p = i√(mħω/2)(â† − â) (script 6.231), in units of √(mħω). Unitary: ψ(x) → ψ(x + 1), a shift ⟨x⟩ → ⟨x⟩ − 1",
+                    ),
                 ] {
                     let resp = ui.add(egui::Button::new(big(op.symbol()).color(look.accent())).min_size(size));
-                    if matches!(op, Op::X | Op::P) {
-                        // the operator hat (egui does not draw the combining circumflex)
-                        let fs = 24.0 * look.font_scale();
-                        let c = resp.rect.center();
-                        let (apex, foot, half) = (c.y - 0.42 * fs, c.y - 0.27 * fs, 0.17 * fs);
-                        let stroke = look.stroke(1.6, look.accent());
-                        ui.painter().line_segment([pos2(c.x - half, foot), pos2(c.x, apex)], stroke);
-                        ui.painter().line_segment([pos2(c.x, apex), pos2(c.x + half, foot)], stroke);
-                    }
                     if resp.on_hover_text(hover).clicked() {
                         self.apply(op, Some(&mut *ctx));
                     }
@@ -884,8 +925,8 @@ impl Scene for LadderScene {
             "lower" | "a" => self.apply(Op::Lower, Some(ctx)),
             "raise" | "ad" => self.apply(Op::Raise, Some(ctx)),
             "number" => self.apply(Op::Number, Some(ctx)),
-            "xop" => self.apply(Op::X, Some(ctx)),
-            "pop" => self.apply(Op::P, Some(ctx)),
+            "expiq" => self.apply(Op::ExpIQ, Some(ctx)),
+            "expip" => self.apply(Op::ExpIP, Some(ctx)),
             "undo" => self.undo(),
             "ground" => self.reset_ground(),
             "fock" => {
@@ -1007,7 +1048,7 @@ impl Scene for LadderScene {
         section(ui, "Operators");
         hint(
             ui,
-            "The buttons under the plots apply â, â†, the number operator â†â, or the position and momentum operators x and p to the current state (with its current phases), show the norm of the result and normalise it. This is algebra on the state, not a time evolution or a measurement.",
+            "The buttons under the plots apply â, â†, the number operator â†â, or the unitary exp(iq) (momentum kick; q is the position x) and exp(ip) (shift) to the current state (with its current phases), show the norm of the result and normalise it. â, â† and â†â are algebra on the state, not a time evolution or a measurement.",
         );
 
         section(ui, "View");
@@ -1047,10 +1088,10 @@ impl Scene for LadderScene {
     fn notes(&self) -> String {
         let intro = match self.preset {
             LadderPreset::Ground => {
-                "# This preset: |0⟩\nPress â† a few times: |0⟩ → |1⟩ → |2⟩ → |3⟩, with the factors √1, √2, √3 shown before normalising; ⟨E⟩ climbs by ħω per step. Press â on |0⟩: the result is 0.\n\n"
+                "# This preset: |0⟩\nPress â† a few times: |0⟩ → |1⟩ → |2⟩ → |3⟩, with the factors √1, √2, √3 shown before normalising; ⟨E⟩ climbs by ħω per step. Press â on |0⟩: the result is 0. Press exp(iq) or exp(ip) on |0⟩: a coherent state, which then circles in phase space.\n\n"
             }
             LadderPreset::Three => {
-                "# This preset: |3⟩\nA Fock state: stationary, σₓσₚ = (2·3 + 1)/2 = 3.5. â gives √3 |2⟩, â† gives √4 |4⟩, â†â gives 3|3⟩ (the same state). The position and momentum operators x and p give superpositions of |2⟩ and |4⟩.\n\n"
+                "# This preset: |3⟩\nA Fock state: stationary, σₓσₚ = (2·3 + 1)/2 = 3.5. â gives √3 |2⟩, â† gives √4 |4⟩, â†â gives 3|3⟩ (the same state). exp(iq) and exp(ip) spread it over many levels (a displaced Fock state).\n\n"
             }
             LadderPreset::Coherent => {
                 "# This preset: a coherent state α = 1.5\nThe bars follow the Poisson law with ⟨n⟩ = |α|² = 2.25 (dashed). Press â: âψ_α = αψ_α, so after normalising the state is the same (only a global phase); the eigenstate line shows α, which turns as α e^(−iωt). Press â†: not an eigenstate; ⟨n⟩ jumps by more than one and the bars are no longer Poisson.\n\n"
@@ -1071,14 +1112,15 @@ Units ħ = m = ω = 1, so the script's dimensionless χ = √(mω/ħ) x is simpl
 - (6.201, 6.204) If â†âψₙ = nψₙ, then âψₙ is an eigenstate with n − 1 and â†ψₙ one with n + 1: â lowers and â† raises the energy by ħω.
 - (6.206 – 6.215) The ladder must end at the bottom: âψ₀ = 0, i.e. dψ₀/dχ = −χψ₀, so ψ₀ = π^(−1/4) e^(−χ²/2), with E₀ = ħω/2: the zero-point energy.
 - (6.224, 6.225) â†ψₙ = √(n+1) ψₙ₊₁ and âψₙ = √n ψₙ₋₁, so ψₙ = (â†)ⁿψ₀/√(n!) ∝ Hₙ(χ) e^(−χ²/2) and Eₙ = (n + ½)ħω.
-- (6.230, 6.231) The position and momentum operators are x = √(ħ/2mω)(â† + â) and p = i√(mħω/2)(â† − â) (hats left out in this panel); for ψₙ: ⟨x⟩ = ⟨p⟩ = 0, σₓσₚ = (2n + 1)ħ/2 (6.239).
+- (6.230, 6.231) The position and momentum operators are x = √(ħ/2mω)(â† + â) and p = i√(mħω/2)(â† − â); for ψₙ: ⟨x⟩ = ⟨p⟩ = 0, σₓσₚ = (2n + 1)ħ/2 (6.239).
 - PS10 40: coherent states are the eigenstates of â, âψ_α = αψ_α, with Poisson weights |cₙ|² = e^(−|α|²)|α|^(2n)/n!.
 
 # What the buttons do
-They apply the operator to the current state cₙ(t), show the norm of the (unnormalised) result and normalise it. This is algebra on the state, not a physical time evolution or a measurement: â, â†, x and p are not unitary.
+They apply the operator to the current state cₙ(t), show the norm of the (unnormalised) result and normalise it. For â, â† and â†â this is algebra on the state, not a physical time evolution or a measurement: they are not unitary.
+- exp(iq) and exp(ip) (hats left out; q is the position operator x, both in oscillator units) are unitary, so they are things one can actually do to the oscillator. exp(iq) multiplies ψ(x) by e^(ix): a momentum kick ⟨p⟩ → ⟨p⟩ + 1 that leaves |ψ(x)|² alone and shifts Φ(p). exp(ip) shifts the wavefunction, ψ(x) → ψ(x + 1), so ⟨x⟩ → ⟨x⟩ − 1, and leaves |Φ(p)|² alone. Both are displacement operators exp(αâ† − α*â), with α = i/√2 and α = −1/√2: on |0⟩ they give a coherent state, on a coherent state another coherent state.
 - ‖âψ‖² = ⟨ψ|â†â|ψ⟩ = ⟨n⟩ and ‖â†ψ‖² = ⟨ââ†⟩ = ⟨n⟩ + 1: the \"last step\" line shows both sides.
 - The commutator line applies ââ† − â†â with the same code as the buttons and checks that it returns ψ.
-- The basis holds n = 0 … 39. If â† pushes population beyond n = 39 the status line says how much was dropped, and the commutator check then fails at the top level.
+- The basis holds n = 0 … 39. If â†, exp(iq) or exp(ip) push population beyond n = 39 the status line says how much was dropped, and the commutator check then fails at the top level.
 - Undo goes back one operator; a measurement cannot be undone.
 
 # Try
@@ -1211,6 +1253,57 @@ mod tests {
         let ex = from_x.psi.iter().zip(&xpsi).map(|(a, b)| (a - b).norm()).fold(0.0, f64::max);
         let ep = from_p.psi.iter().zip(&ppsi).map(|(a, b)| (a - b).norm()).fold(0.0, f64::max);
         assert!(ex < 1e-8 && ep < 1e-8, "x̂: {ex}, p̂: {ep}");
+    }
+
+    /// e^(iq̂) multiplies ψ(x) by e^(ix) and e^(ip̂) shifts it to ψ(x + 1); both are unitary.
+    #[test]
+    fn exponentials_kick_and_shift() {
+        let s = LadderScene::new(LadderPreset::Ground);
+        let build = |c: &[C64]| EigenExpansion::from_coeffs(s.basis.clone(), c).wave();
+        let g = s.basis.grid;
+        let mut rng = QbRng::seed(9);
+        let c = random_state(&mut rng, 8);
+        let psi = build(&c);
+        let (kq, lost_q) = exp_i(&c, position);
+        let (kp, lost_p) = exp_i(&c, momentum);
+        assert!(lost_q < 1e-12 && lost_p < 1e-12);
+        assert!((norm2(&kq) - 1.0).abs() < 1e-10 && (norm2(&kp) - 1.0).abs() < 1e-10);
+        // kick: e^(ix)ψ
+        let kicked = build(&kq);
+        let e = kicked
+            .psi
+            .iter()
+            .zip(&psi.psi)
+            .enumerate()
+            .map(|(i, (a, b))| (a - b * C64::from_polar(1.0, g.x(i))).norm())
+            .fold(0.0, f64::max);
+        assert!(e < 1e-8, "e^(ix)ψ: {e}");
+        // ⟨x⟩, ⟨p⟩ move by (0, +1) and (−1, 0)
+        let (x0, p0) = mean_xp(&c);
+        let (x1, p1) = mean_xp(&kq);
+        assert!((x1 - x0).abs() < 1e-9 && (p1 - p0 - 1.0).abs() < 1e-9);
+        let (x2, p2) = mean_xp(&kp);
+        assert!((x2 - x0 + 1.0).abs() < 1e-9 && (p2 - p0).abs() < 1e-9);
+        // shift: e^(ip)ψ₀ = ψ₀(x + 1), the coherent state α = −1/√2
+        let mut c0 = vec![c64(0.0, 0.0); LEVELS];
+        c0[0] = c64(1.0, 0.0);
+        let (sh, _) = exp_i(&c0, momentum);
+        let shifted = build(&sh);
+        let e = shifted
+            .psi
+            .iter()
+            .enumerate()
+            .map(|(i, z)| (z - c64(ho_psi(0, g.x(i) + 1.0, 1.0), 0.0)).norm())
+            .fold(0.0, f64::max);
+        assert!(e < 1e-8, "ψ₀(x + 1): {e}");
+        let (alpha, res) = lowering_eigen_check(&sh);
+        assert!((alpha - c64(-std::f64::consts::FRAC_1_SQRT_2, 0.0)).norm() < 1e-9 && res < 1e-9);
+        // e^(−iq) undoes e^(iq)
+        let (back, _) = exp_i(&kq, |c| {
+            let (v, l) = position(c);
+            (v.iter().map(|z| -z).collect(), l)
+        });
+        assert!(back.iter().zip(&c).map(|(a, b)| (a - b).norm()).fold(0.0, f64::max) < 1e-9);
     }
 
     #[test]
